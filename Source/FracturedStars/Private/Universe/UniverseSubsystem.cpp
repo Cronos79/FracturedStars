@@ -2,6 +2,7 @@
 
 #include "Universe/UniverseSubsystem.h"
 #include "Universe/UniverseGenerator.h"
+#include "Universe/EconomySubsystem.h"
 #include "Containers/Queue.h"
 
 void UUniverseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -355,6 +356,141 @@ FString OwnerStr = (Location.OwningFactionId == -1) ? TEXT("Independent") : FStr
 UE_LOG(LogTemp, Log, TEXT("  - %s [%s] | Owner: %s | Pop: %d | Security: %.2f"), *Location.LocationName, *LocationTypeStr, *OwnerStr, Location.Population, Location.SecurityRating);
 }
 
-UE_LOG(LogTemp, Log, TEXT("Total System Population: %lld"), TotalPopulation);
-UE_LOG(LogTemp, Log, TEXT("========================================"));
+	UE_LOG(LogTemp, Log, TEXT("Total System Population: %lld"), TotalPopulation);
+	UE_LOG(LogTemp, Log, TEXT("========================================"));
 }
+
+// Sprint 3: Economy integration functions
+
+void UUniverseSubsystem::InitializeEconomy()
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot initialize economy: universe not generated"));
+		return;
+	}
+
+	// Get economy subsystem
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[UniverseSubsystem] EconomySubsystem not found!"));
+		return;
+	}
+
+	// Initialize economy with our universe data
+	EconomySubsystem->InitializeEconomy(UniverseData);
+
+	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Economy initialized for universe"));
+}
+
+void UUniverseSubsystem::SetActiveEconomySystem(int32 SystemId)
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot set active system: universe not generated"));
+		return;
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[UniverseSubsystem] EconomySubsystem not found!"));
+		return;
+	}
+
+	EconomySubsystem->SetActiveSystem(UniverseData, SystemId);
+}
+
+int32 UUniverseSubsystem::GetActiveEconomySystemId() const
+{
+	return UniverseData.ActiveSystemId;
+}
+
+double UUniverseSubsystem::GetCurrentGameTime() const
+{
+	return UniverseData.CurrentGameTime;
+}
+
+FMarketState UUniverseSubsystem::GetMarketState(int32 SystemId, int32 LocationId) const
+{
+	if (!bIsGenerated)
+	{
+		return FMarketState();
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		return FMarketState();
+	}
+
+	return EconomySubsystem->GetMarketState(UniverseData, SystemId, LocationId);
+}
+
+float UUniverseSubsystem::GetGoodPrice(int32 SystemId, int32 LocationId, EGoodType GoodType) const
+{
+	if (!bIsGenerated)
+	{
+		return 0.0f;
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		return 0.0f;
+	}
+
+	return EconomySubsystem->GetGoodPrice(UniverseData, SystemId, LocationId, GoodType);
+}
+
+bool UUniverseSubsystem::HasShortage(int32 SystemId, int32 LocationId, EGoodType GoodType) const
+{
+	if (!bIsGenerated)
+	{
+		return false;
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		return false;
+	}
+
+	return EconomySubsystem->HasShortage(UniverseData, SystemId, LocationId, GoodType);
+}
+
+TArray<int32> UUniverseSubsystem::FindShortageLocations(EGoodType GoodType) const
+{
+	if (!bIsGenerated)
+	{
+		return TArray<int32>();
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		return TArray<int32>();
+	}
+
+	return EconomySubsystem->FindShortageLocations(UniverseData, GoodType);
+}
+
+void UUniverseSubsystem::PrintEconomyStats() const
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot print economy stats: universe not generated"));
+		return;
+	}
+
+	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+	if (!EconomySubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[UniverseSubsystem] EconomySubsystem not found!"));
+		return;
+	}
+
+	EconomySubsystem->PrintEconomyStats(UniverseData);
+}
+

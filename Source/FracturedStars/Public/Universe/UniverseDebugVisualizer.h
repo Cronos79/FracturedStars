@@ -55,6 +55,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Content")
 	bool bShowOwnership = false;
 
+	// Sprint 3: Economy display modes
+
+	/** Show shortage overlay (red = has shortages) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Economy")
+	bool bShowShortages = false;
+
+	/** Show surplus overlay (green = has surpluses) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Economy")
+	bool bShowSurpluses = false;
+
+	/** Show price variance overlay (color intensity = price deviation from base) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Economy")
+	bool bShowPriceVariance = false;
+
+	/** Which good to visualize for shortages/surpluses/prices */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Economy")
+	EGoodType EconomyDisplayGood = EGoodType::Food;
+
 	/** Scale factor for visualization (adjust to fit viewport) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug", meta = (ClampMin = "0.1", ClampMax = "10.0"))
 	float VisualizationScale = 1.0f;

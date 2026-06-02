@@ -106,6 +106,63 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
 	void PrintSystemContent(int32 SystemId) const;
 
+	// Sprint 3: Economy integration functions
+
+	/**
+	 * Initialize economy for all locations
+	 * Call after universe generation
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	void InitializeEconomy();
+
+	/**
+	 * Set which system is actively simulated in real-time
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	void SetActiveEconomySystem(int32 SystemId);
+
+	/**
+	 * Get current active system ID
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Economy")
+	int32 GetActiveEconomySystemId() const;
+
+	/**
+	 * Get current game time (seconds since universe creation)
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Economy")
+	double GetCurrentGameTime() const;
+
+	/**
+	 * Get market state at a location
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	FMarketState GetMarketState(int32 SystemId, int32 LocationId) const;
+
+	/**
+	 * Get price of a good at a location
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	float GetGoodPrice(int32 SystemId, int32 LocationId, EGoodType GoodType) const;
+
+	/**
+	 * Check if location has shortage of a good
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	bool HasShortage(int32 SystemId, int32 LocationId, EGoodType GoodType) const;
+
+	/**
+	 * Find all locations with shortages of a specific good
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	TArray<int32> FindShortageLocations(EGoodType GoodType) const;
+
+	/**
+	 * Print economy statistics
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
+	void PrintEconomyStats() const;
+
 private:
 	UPROPERTY()
 	FUniverseData UniverseData;

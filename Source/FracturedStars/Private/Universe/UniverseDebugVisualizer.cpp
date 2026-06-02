@@ -105,6 +105,102 @@ void AUniverseDebugVisualizer::DrawUniverse()
 				uint8 Brightness = static_cast<uint8>(Intensity * 255);
 				Color = FColor(Brightness, Brightness, 255); // Blue gradient
 			}
+			// Sprint 3: Economy visualization modes
+			else if (bShowShortages)
+			{
+				// Red = has shortages of selected good
+				bool bHasShortage = false;
+				for (const FLocationData& Loc : System.Locations)
+				{
+					for (const FMarketGoodEntry& Good : Loc.Market.Goods)
+					{
+						if (Good.GoodType == EconomyDisplayGood && Good.bIsShortage)
+						{
+							bHasShortage = true;
+							break;
+						}
+					}
+					if (bHasShortage) break;
+				}
+				Color = bHasShortage ? FColor::Red : FColor(50, 50, 50); // Red or dark gray
+			}
+			else if (bShowSurpluses)
+			{
+				// Green = has surpluses of selected good
+				bool bHasSurplus = false;
+				for (const FLocationData& Loc : System.Locations)
+				{
+					for (const FMarketGoodEntry& Good : Loc.Market.Goods)
+					{
+						if (Good.GoodType == EconomyDisplayGood && Good.bIsSurplus)
+						{
+							bHasSurplus = true;
+							break;
+						}
+					}
+					if (bHasSurplus) break;
+				}
+				Color = bHasSurplus ? FColor::Green : FColor(50, 50, 50); // Green or dark gray
+			}
+			else if (bShowPriceVariance)
+			{
+				// Color intensity = price deviation from base
+				// Blue = below base, Red = above base
+				float AvgPriceRatio = 1.0f;
+				int32 MarketCount = 0;
+
+				for (const FLocationData& Loc : System.Locations)
+				{
+					for (const FMarketGoodEntry& Good : Loc.Market.Goods)
+					{
+						if (Good.GoodType == EconomyDisplayGood)
+						{
+							// Get base price from economy subsystem
+							UGameInstance* GI = GetWorld()->GetGameInstance();
+							if (GI)
+							{
+								UUniverseSubsystem* US = GI->GetSubsystem<UUniverseSubsystem>();
+								if (US)
+								{
+									// Approximate base price (we don't have direct access, use simple heuristic)
+									// Assume base price is around the current price divided by typical variance
+									float BasePrice = 10.0f; // Default fallback
+									if (Good.GoodType == EGoodType::Food) BasePrice = 5.0f;
+									else if (Good.GoodType == EGoodType::Water) BasePrice = 3.0f;
+									else if (Good.GoodType == EGoodType::Fuel) BasePrice = 15.0f;
+									else if (Good.GoodType == EGoodType::Medicine) BasePrice = 50.0f;
+									// (simplified - full implementation would query economy subsystem catalog)
+
+									AvgPriceRatio += Good.CurrentPrice / BasePrice;
+									MarketCount++;
+								}
+							}
+							break;
+						}
+					}
+				}
+
+				if (MarketCount > 0)
+				{
+					AvgPriceRatio /= MarketCount;
+
+					// Ratio < 1.0 = below base (blue), > 1.0 = above base (red)
+					if (AvgPriceRatio < 1.0f)
+					{
+						uint8 Intensity = static_cast<uint8>(FMath::Clamp((1.0f - AvgPriceRatio) * 255, 0.0f, 255.0f));
+						Color = FColor(0, 0, Intensity); // Blue
+					}
+					else
+					{
+						uint8 Intensity = static_cast<uint8>(FMath::Clamp((AvgPriceRatio - 1.0f) * 255, 0.0f, 255.0f));
+						Color = FColor(Intensity, 0, 0); // Red
+					}
+				}
+				else
+				{
+					Color = FColor(50, 50, 50); // Dark gray if no markets
+				}
+			}
 
 			// Draw sphere
 			DrawDebugSphere(

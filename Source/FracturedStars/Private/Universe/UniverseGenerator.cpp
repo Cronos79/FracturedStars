@@ -749,7 +749,7 @@ TArray<FResourceEntry> UUniverseGenerator::CreateProductionProfile(ELocationType
 	{
 	case ELocationType::MiningColony:
 		Production.Add(FResourceEntry(EResourceType::Ore, RandStream.RandRange(100, 500)));
-		Production.Add(FResourceEntry(EResourceType::RareMetals, RandStream.RandRange(10, 100)));
+		Production.Add(FResourceEntry(EResourceType::RefinedMetals, RandStream.RandRange(10, 100)));
 		break;
 
 	case ELocationType::Shipyard:
@@ -758,7 +758,7 @@ TArray<FResourceEntry> UUniverseGenerator::CreateProductionProfile(ELocationType
 
 	case ELocationType::ResearchFacility:
 		Production.Add(FResourceEntry(EResourceType::Electronics, RandStream.RandRange(20, 100)));
-		Production.Add(FResourceEntry(EResourceType::ChemicalCompounds, RandStream.RandRange(10, 50)));
+		Production.Add(FResourceEntry(EResourceType::ResearchMaterials, RandStream.RandRange(10, 50)));
 		break;
 
 	case ELocationType::MilitaryBase:
@@ -809,12 +809,12 @@ TArray<FResourceEntry> UUniverseGenerator::CreateConsumptionProfile(ELocationTyp
 	{
 	case ELocationType::Shipyard:
 		Consumption.Add(FResourceEntry(EResourceType::Ore, RandStream.RandRange(100, 500)));
-		Consumption.Add(FResourceEntry(EResourceType::RareMetals, RandStream.RandRange(50, 200)));
+		Consumption.Add(FResourceEntry(EResourceType::RefinedMetals, RandStream.RandRange(50, 200)));
 		Consumption.Add(FResourceEntry(EResourceType::Electronics, RandStream.RandRange(50, 200)));
 		break;
 
 	case ELocationType::ResearchFacility:
-		Consumption.Add(FResourceEntry(EResourceType::ChemicalCompounds, RandStream.RandRange(20, 100)));
+		Consumption.Add(FResourceEntry(EResourceType::ResearchMaterials, RandStream.RandRange(20, 100)));
 		Consumption.Add(FResourceEntry(EResourceType::Electronics, RandStream.RandRange(30, 150)));
 		break;
 
@@ -824,8 +824,8 @@ TArray<FResourceEntry> UUniverseGenerator::CreateConsumptionProfile(ELocationTyp
 		break;
 
 	case ELocationType::TradeHub:
-		// Trade hubs need luxuries
-		Consumption.Add(FResourceEntry(EResourceType::Luxuries, RandStream.RandRange(50, 300)));
+		// Trade hubs need consumer goods
+		Consumption.Add(FResourceEntry(EResourceType::ConsumerGoods, RandStream.RandRange(50, 300)));
 		break;
 
 	default:

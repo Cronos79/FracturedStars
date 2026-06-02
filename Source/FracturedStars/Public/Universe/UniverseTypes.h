@@ -57,25 +57,88 @@ enum class ELocationType : uint8
 };
 
 /**
- * Resource/commodity types for economy system
- * Used in production and consumption profiles
+ * Resource/commodity types for economy system (Sprint 3: renamed to Goods)
+ * Used in production, consumption, and market trading
  */
 UENUM(BlueprintType)
-enum class EResourceType : uint8
+enum class EGoodType : uint8
 {
 	Food			UMETA(DisplayName = "Food"),
 	Water			UMETA(DisplayName = "Water"),
 	Fuel			UMETA(DisplayName = "Fuel"),
 	Ore				UMETA(DisplayName = "Ore"),
-	RareMetals		UMETA(DisplayName = "Rare Metals"),
+	RefinedMetals	UMETA(DisplayName = "Refined Metals"),
 	Medicine		UMETA(DisplayName = "Medicine"),
 	Machinery		UMETA(DisplayName = "Machinery"),
 	Electronics		UMETA(DisplayName = "Electronics"),
 	Weapons			UMETA(DisplayName = "Weapons"),
-	Luxuries		UMETA(DisplayName = "Luxuries"),
+	ConsumerGoods	UMETA(DisplayName = "Consumer Goods"),
 	IndustrialParts	UMETA(DisplayName = "Industrial Parts"),
-	ChemicalCompounds UMETA(DisplayName = "Chemical Compounds")
+	AdvancedComponents UMETA(DisplayName = "Advanced Components"),
+	ResearchMaterials UMETA(DisplayName = "Research Materials"),
+	Contraband		UMETA(DisplayName = "Contraband")		// Illegal/restricted
 };
+
+/**
+ * Good category for economy rules
+ */
+UENUM(BlueprintType)
+enum class EGoodCategory : uint8
+{
+	Survival		UMETA(DisplayName = "Survival"),		// Food, Water, Medicine
+	Industrial		UMETA(DisplayName = "Industrial"),		// Ore, Machinery, Parts
+	HighTech		UMETA(DisplayName = "High Tech"),		// Electronics, Advanced Components
+	Military		UMETA(DisplayName = "Military"),		// Weapons, restricted tech
+	Luxury			UMETA(DisplayName = "Luxury"),			// Consumer goods, entertainment
+	Illegal			UMETA(DisplayName = "Illegal")			// Contraband, smuggled goods
+};
+
+/**
+ * Good definition
+ * Static properties of each tradeable good
+ */
+USTRUCT(BlueprintType)
+struct FGoodDefinition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	EGoodType GoodType = EGoodType::Food;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	FString DisplayName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	EGoodCategory Category = EGoodCategory::Survival;
+
+	// Base price in credits (market prices fluctuate around this)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float BasePrice = 10.0f;
+
+	// Is this good essential for survival? (food, water, medicine, fuel)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bIsEssential = false;
+
+	// Is this good legal by default? (false = contraband)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bIsLegal = true;
+
+	// Cargo space per unit (for future hauling mechanics)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float CargoUnitSize = 1.0f;
+
+	FGoodDefinition()
+		: GoodType(EGoodType::Food)
+		, Category(EGoodCategory::Survival)
+		, BasePrice(10.0f)
+		, bIsEssential(false)
+		, bIsLegal(true)
+		, CargoUnitSize(1.0f)
+	{}
+};
+
+// Sprint 2 compatibility: Keep EResourceType as alias for now
+typedef EGoodType EResourceType;
 
 /**
  * Resource profile entry
@@ -87,19 +150,109 @@ struct FResourceEntry
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
-	EResourceType ResourceType = EResourceType::Food;
+	EGoodType ResourceType = EGoodType::Food;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	int32 Quantity = 0;
 
 	FResourceEntry()
-		: ResourceType(EResourceType::Food)
+		: ResourceType(EGoodType::Food)
 		, Quantity(0)
 	{}
 
-	FResourceEntry(EResourceType InType, int32 InQuantity)
+	FResourceEntry(EGoodType InType, int32 InQuantity)
 		: ResourceType(InType)
 		, Quantity(InQuantity)
+	{}
+};
+
+/**
+ * Market good entry
+ * Tracks inventory, pricing, and shortage/surplus for a single good at one location
+ */
+USTRUCT(BlueprintType)
+struct FMarketGoodEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	EGoodType GoodType = EGoodType::Food;
+
+	// Current inventory stock (units available for sale)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 Stock = 0;
+
+	// Current market price in credits per unit
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float CurrentPrice = 10.0f;
+
+	// Production per simulation cycle (for producers)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 ProductionRate = 0;
+
+	// Consumption per simulation cycle (for consumers)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 ConsumptionRate = 0;
+
+	// Target stock level for healthy operation
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 TargetStock = 100;
+
+	// Shortage flag (stock below critical threshold)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bIsShortage = false;
+
+	// Surplus flag (stock above target)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bIsSurplus = false;
+
+	FMarketGoodEntry()
+		: GoodType(EGoodType::Food)
+		, Stock(0)
+		, CurrentPrice(10.0f)
+		, ProductionRate(0)
+		, ConsumptionRate(0)
+		, TargetStock(100)
+		, bIsShortage(false)
+		, bIsSurplus(false)
+	{}
+
+	FMarketGoodEntry(EGoodType InType, int32 InStock, float InPrice)
+		: GoodType(InType)
+		, Stock(InStock)
+		, CurrentPrice(InPrice)
+		, ProductionRate(0)
+		, ConsumptionRate(0)
+		, TargetStock(100)
+		, bIsShortage(false)
+		, bIsSurplus(false)
+	{}
+};
+
+/**
+ * Market state for a location
+ * Tracks all tradeable goods and last simulation update
+ */
+USTRUCT(BlueprintType)
+struct FMarketState
+{
+	GENERATED_BODY()
+
+	// All goods traded at this market
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	TArray<FMarketGoodEntry> Goods;
+
+	// Last simulation time (game seconds since universe creation)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	double LastUpdateTime = 0.0;
+
+	// Is this market currently simulated in real-time? (player in-system)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bIsActiveSimulation = false;
+
+	FMarketState()
+		: LastUpdateTime(0.0)
+		, bIsActiveSimulation(false)
 	{}
 };
 
@@ -175,9 +328,13 @@ struct FLocationData
 	UPROPERTY(BlueprintReadOnly, Category = "Location")
 	TArray<FResourceEntry> Consumes;
 
-	// Future: inventory storage
+	// Sprint 2: Future inventory storage (deprecated - use Market.Goods instead)
 	UPROPERTY(BlueprintReadOnly, Category = "Location")
 	TArray<FResourceEntry> Inventory;
+
+	// Sprint 3: Market state with live inventory, prices, and shortages
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	FMarketState Market;
 
 	FLocationData()
 		: LocationId(-1)
@@ -284,6 +441,14 @@ struct FUniverseConfig
 	UPROPERTY(BlueprintReadWrite, Category = "Generation")
 	float GalacticRadius = 100000.0f;
 
+	// Sprint 3: Economy simulation tick rate (seconds) for active systems
+	UPROPERTY(BlueprintReadWrite, Category = "Economy")
+	float EconomyTickRate = 5.0f;
+
+	// Sprint 3: Catch-up simulation chunk size (hours of game time per call)
+	UPROPERTY(BlueprintReadWrite, Category = "Economy")
+	float BackgroundSimulationChunk = 24.0f;
+
 	FUniverseConfig()
 		: Seed(12345)
 		, SystemCount(500)
@@ -292,6 +457,8 @@ struct FUniverseConfig
 		, MinLawlessBuffer(2)
 		, AvgConnectionsPerSystem(3)
 		, GalacticRadius(100000.0f)
+		, EconomyTickRate(5.0f)
+		, BackgroundSimulationChunk(24.0f)
 	{}
 };
 
@@ -320,7 +487,17 @@ struct FUniverseData
 	UPROPERTY(BlueprintReadOnly, Category = "Universe")
 	FDateTime GenerationTime;
 
+	// Sprint 3: Current game time (seconds since universe creation)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	double CurrentGameTime = 0.0;
+
+	// Sprint 3: Active system ID for real-time economy simulation (-1 = none)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 ActiveSystemId = -1;
+
 	FUniverseData()
+		: CurrentGameTime(0.0)
+		, ActiveSystemId(-1)
 	{
 		GenerationTime = FDateTime::Now();
 	}
