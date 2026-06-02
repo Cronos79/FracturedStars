@@ -33,7 +33,19 @@ private:
 	static void AssignRegions(FUniverseData& Universe);
 	static void CalculateLawfulness(FUniverseData& Universe);
 	static void EnsureTraversability(FUniverseData& Universe, FRandomStream& RandStream);
+	static void GenerateSystemContent(FUniverseData& Universe, FRandomStream& RandStream);
 	static void ValidateGeneration(const FUniverseData& Universe);
+
+	// Content generation helpers
+	static void GenerateCelestialBodies(FStarSystemData& System, FRandomStream& RandStream);
+	static void GenerateLocations(FStarSystemData& System, FRandomStream& RandStream);
+	static ELocationType DetermineLocationType(ERegionType RegionType, FRandomStream& RandStream);
+	static int32 GeneratePopulation(ELocationType LocationType, ERegionType RegionType, FRandomStream& RandStream);
+	static void AssignLocationOwnership(FLocationData& Location, ERegionType RegionType, int32 ControllingFactionId, FRandomStream& RandStream);
+	static TArray<FResourceEntry> CreateProductionProfile(ELocationType LocationType, ERegionType RegionType, FRandomStream& RandStream);
+	static TArray<FResourceEntry> CreateConsumptionProfile(ELocationType LocationType, int32 Population, FRandomStream& RandStream);
+	static FString GenerateCelestialBodyName(int32 SystemId, int32 BodyIndex, ECelestialBodyType BodyType, FRandomStream& RandStream);
+	static FString GenerateLocationName(int32 SystemId, int32 LocationIndex, ELocationType LocationType, FRandomStream& RandStream);
 
 	// Helper functions
 	static FString GenerateSystemName(int32 Index, FRandomStream& RandStream);

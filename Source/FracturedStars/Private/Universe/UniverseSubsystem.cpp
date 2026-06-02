@@ -231,3 +231,130 @@ TArray<int32> UUniverseSubsystem::FindPathInternal(int32 StartId, int32 EndId) c
 
 	return TArray<int32>(); // No path found
 }
+
+// Sprint 2: Content query implementations
+
+TArray<FCelestialBodyData> UUniverseSubsystem::GetCelestialBodiesInSystem(int32 SystemId) const
+{
+if (!bIsGenerated)
+{
+UE_LOG(LogTemp, Warning, TEXT("Universe not generated yet"));
+return TArray<FCelestialBodyData>();
+}
+
+if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+{
+UE_LOG(LogTemp, Warning, TEXT("Invalid system ID: %d"), SystemId);
+return TArray<FCelestialBodyData>();
+}
+
+return UniverseData.Systems[SystemId].CelestialBodies;
+}
+
+TArray<FLocationData> UUniverseSubsystem::GetLocationsInSystem(int32 SystemId) const
+{
+if (!bIsGenerated)
+{
+UE_LOG(LogTemp, Warning, TEXT("Universe not generated yet"));
+return TArray<FLocationData>();
+}
+
+if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+{
+UE_LOG(LogTemp, Warning, TEXT("Invalid system ID: %d"), SystemId);
+return TArray<FLocationData>();
+}
+
+return UniverseData.Systems[SystemId].Locations;
+}
+
+TArray<FLocationData> UUniverseSubsystem::GetLocationsByOwner(int32 FactionId) const
+{
+TArray<FLocationData> OwnedLocations;
+
+if (!bIsGenerated)
+{
+UE_LOG(LogTemp, Warning, TEXT("Universe not generated yet"));
+return OwnedLocations;
+}
+
+for (const FStarSystemData& System : UniverseData.Systems)
+{
+for (const FLocationData& Location : System.Locations)
+{
+if (Location.OwningFactionId == FactionId)
+{
+OwnedLocations.Add(Location);
+}
+}
+}
+
+return OwnedLocations;
+}
+
+void UUniverseSubsystem::PrintSystemContent(int32 SystemId) const
+{
+if (!bIsGenerated)
+{
+UE_LOG(LogTemp, Warning, TEXT("Universe not generated yet"));
+return;
+}
+
+if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+{
+UE_LOG(LogTemp, Warning, TEXT("Invalid system ID: %d"), SystemId);
+return;
+}
+
+const FStarSystemData& System = UniverseData.Systems[SystemId];
+
+UE_LOG(LogTemp, Log, TEXT("========================================"));
+UE_LOG(LogTemp, Log, TEXT("SYSTEM CONTENT: %s (ID: %d)"), *System.SystemName, System.SystemId);
+UE_LOG(LogTemp, Log, TEXT("========================================"));
+
+UE_LOG(LogTemp, Log, TEXT("Celestial Bodies (%d):"), System.CelestialBodies.Num());
+for (const FCelestialBodyData& Body : System.CelestialBodies)
+{
+FString BodyTypeStr;
+switch (Body.BodyType)
+{
+case ECelestialBodyType::Star: BodyTypeStr = TEXT("Star"); break;
+case ECelestialBodyType::Planet: BodyTypeStr = TEXT("Planet"); break;
+case ECelestialBodyType::Moon: BodyTypeStr = TEXT("Moon"); break;
+case ECelestialBodyType::AsteroidField: BodyTypeStr = TEXT("Asteroid Field"); break;
+case ECelestialBodyType::GasGiant: BodyTypeStr = TEXT("Gas Giant"); break;
+case ECelestialBodyType::IceGiant: BodyTypeStr = TEXT("Ice Giant"); break;
+case ECelestialBodyType::DwarfPlanet: BodyTypeStr = TEXT("Dwarf Planet"); break;
+case ECelestialBodyType::Anomaly: BodyTypeStr = TEXT("Anomaly"); break;
+default: BodyTypeStr = TEXT("Unknown"); break;
+}
+UE_LOG(LogTemp, Log, TEXT("  - %s [%s] (Resource: %.2f)"), *Body.BodyName, *BodyTypeStr, Body.ResourceRichness);
+}
+
+UE_LOG(LogTemp, Log, TEXT("Locations (%d):"), System.Locations.Num());
+int64 TotalPopulation = 0;
+for (const FLocationData& Location : System.Locations)
+{
+TotalPopulation += Location.Population;
+FString LocationTypeStr;
+switch (Location.LocationType)
+{
+case ELocationType::Station: LocationTypeStr = TEXT("Station"); break;
+case ELocationType::TradeHub: LocationTypeStr = TEXT("Trade Hub"); break;
+case ELocationType::MiningColony: LocationTypeStr = TEXT("Mining Colony"); break;
+case ELocationType::ResearchFacility: LocationTypeStr = TEXT("Research Facility"); break;
+case ELocationType::MilitaryBase: LocationTypeStr = TEXT("Military Base"); break;
+case ELocationType::PirateOutpost: LocationTypeStr = TEXT("Pirate Outpost"); break;
+case ELocationType::AbandonedFacility: LocationTypeStr = TEXT("Abandoned Facility"); break;
+case ELocationType::Shipyard: LocationTypeStr = TEXT("Shipyard"); break;
+case ELocationType::RefuelingDepot: LocationTypeStr = TEXT("Refueling Depot"); break;
+case ELocationType::Colony: LocationTypeStr = TEXT("Colony"); break;
+default: LocationTypeStr = TEXT("Unknown"); break;
+}
+FString OwnerStr = (Location.OwningFactionId == -1) ? TEXT("Independent") : FString::Printf(TEXT("Faction %d"), Location.OwningFactionId);
+UE_LOG(LogTemp, Log, TEXT("  - %s [%s] | Owner: %s | Pop: %d | Security: %.2f"), *Location.LocationName, *LocationTypeStr, *OwnerStr, Location.Population, Location.SecurityRating);
+}
+
+UE_LOG(LogTemp, Log, TEXT("Total System Population: %lld"), TotalPopulation);
+UE_LOG(LogTemp, Log, TEXT("========================================"));
+}

@@ -41,6 +41,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug")
 	bool bShowSystemNames = false;
 
+	// Sprint 2: Content display modes
+
+	/** Show location count overlay */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Content")
+	bool bShowLocationCount = false;
+
+	/** Show population overlay (color intensity = population) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Content")
+	bool bShowPopulation = false;
+
+	/** Show ownership overlay (faction colors) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug|Content")
+	bool bShowOwnership = false;
+
 	/** Scale factor for visualization (adjust to fit viewport) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Debug", meta = (ClampMin = "0.1", ClampMax = "10.0"))
 	float VisualizationScale = 1.0f;

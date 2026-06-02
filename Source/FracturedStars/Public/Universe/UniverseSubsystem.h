@@ -80,6 +80,32 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
 	void PrintSystemInfo(int32 SystemId) const;
 
+	// Sprint 2: Content query functions
+
+	/**
+	 * Get celestial bodies in a system
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Content")
+	TArray<FCelestialBodyData> GetCelestialBodiesInSystem(int32 SystemId) const;
+
+	/**
+	 * Get locations in a system
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Content")
+	TArray<FLocationData> GetLocationsInSystem(int32 SystemId) const;
+
+	/**
+	 * Get all locations owned by a faction
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Content")
+	TArray<FLocationData> GetLocationsByOwner(int32 FactionId) const;
+
+	/**
+	 * Print detailed system content (celestial bodies, locations, population)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
+	void PrintSystemContent(int32 SystemId) const;
+
 private:
 	UPROPERTY()
 	FUniverseData UniverseData;

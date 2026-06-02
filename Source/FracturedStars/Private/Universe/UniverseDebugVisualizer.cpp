@@ -85,6 +85,27 @@ void AUniverseDebugVisualizer::DrawUniverse()
 			FVector SystemPos = ScalePosition(System.Coordinates);
 			FColor Color = GetRegionColor(System.RegionType);
 
+			// Sprint 2: Override color based on display mode
+			if (bShowOwnership && System.ControllingFactionId != -1)
+			{
+				// Color by faction (cycle through hues)
+				float Hue = (System.ControllingFactionId * 70.0f);
+				Color = FLinearColor::MakeFromHSV8(static_cast<uint8>(Hue), 200, 255).ToFColor(true);
+			}
+			else if (bShowPopulation)
+			{
+				// Color intensity by population (darker = less pop, brighter = more pop)
+				int64 TotalPop = 0;
+				for (const FLocationData& Loc : System.Locations)
+				{
+					TotalPop += Loc.Population;
+				}
+				// Scale: 0 pop = black, 1M+ = bright white
+				float Intensity = FMath::Clamp(TotalPop / 1000000.0f, 0.0f, 1.0f);
+				uint8 Brightness = static_cast<uint8>(Intensity * 255);
+				Color = FColor(Brightness, Brightness, 255); // Blue gradient
+			}
+
 			// Draw sphere
 			DrawDebugSphere(
 				GetWorld(),
@@ -107,6 +128,21 @@ void AUniverseDebugVisualizer::DrawUniverse()
 					Color,
 					-1.0f,
 					true // Draw shadow
+				);
+			}
+
+			// Sprint 2: Show location count
+			if (bShowLocationCount)
+			{
+				FString LocationInfo = FString::Printf(TEXT("%d"), System.Locations.Num());
+				DrawDebugString(
+					GetWorld(),
+					SystemPos + FVector(0, 0, SystemSphereRadius + 50.0f),
+					LocationInfo,
+					nullptr,
+					FColor::White,
+					-1.0f,
+					true
 				);
 			}
 		}
