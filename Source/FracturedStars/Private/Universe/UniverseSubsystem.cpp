@@ -5,27 +5,107 @@
 #include "Universe/EconomySubsystem.h"
 #include "Containers/Queue.h"
 
+// Network authority helpers
+bool UUniverseSubsystem::IsAuthority() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return true; // Standalone/editor - act as authority
+	}
+
+	ENetMode NetMode = World->GetNetMode();
+	return NetMode == NM_DedicatedServer || NetMode == NM_ListenServer || NetMode == NM_Standalone;
+}
+
+bool UUniverseSubsystem::IsClient() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	return World->GetNetMode() == NM_Client;
+}
+
 void UUniverseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Initialized"));
+
+	// Only start time advancement on server/standalone
+	// Clients will receive time updates via replication (future)
+	if (IsAuthority())
+	{
+		// Set up time advancement timer (10 times per second for smooth time progression)
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(TimeAdvancementTimer, [this]()
+			{
+				if (bIsGenerated && !bTimePaused)
+				{
+					// Get real delta time (0.1 seconds)
+					float DeltaTime = 0.1f;
+
+					// Apply time scale to get game time delta
+					double DeltaGameSeconds = DeltaTime * UniverseData.Config.TimeScale;
+
+					// Update the calendar
+					UpdateGameTime(DeltaGameSeconds);
+				}
+			}, 0.1f, true);
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Initialized (Server/Standalone)"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Initialized (Client - read-only mode)"));
+	}
 }
 
 void UUniverseSubsystem::Deinitialize()
 {
+	// Clear timer (only needed on authority, but safe to call on clients)
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimeAdvancementTimer);
+	}
+
 	Super::Deinitialize();
-	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Deinitialized"));
+
+	if (IsAuthority())
+	{
+		UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Deinitialized (Server/Standalone)"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Deinitialized (Client)"));
+	}
 }
 
 bool UUniverseSubsystem::GenerateUniverse(const FUniverseConfig& Config)
 {
-	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Generating universe..."));
+	// Only server/standalone can generate universe
+	// Clients will generate locally from seed (future networking sprint)
+	if (IsClient())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UniverseSubsystem: Clients cannot generate universe - server authority required!"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Generating universe (Server/Standalone)..."));
 
 	// Generate universe
 	UniverseData = UUniverseGenerator::GenerateUniverse(Config);
 	bIsGenerated = true;
 
+	// Initialize game time from config
+	UniverseData.CurrentTime = FUniverseTime(Config.StartYear, Config.StartMonth, Config.StartDay);
+
 	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Universe ready! (%d systems)"), UniverseData.Systems.Num());
+	UE_LOG(LogTemp, Log, TEXT("UniverseSubsystem: Game time initialized to %s"), *GetFormattedDate());
+
 	return true;
 }
 
@@ -181,6 +261,29 @@ void UUniverseSubsystem::PrintSystemInfo(int32 SystemId) const
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("========================================"));
+}
+
+void UUniverseSubsystem::PrintTimeInfo() const
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Universe not generated yet"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("========== Game Time Info =========="));
+	UE_LOG(LogTemp, Log, TEXT("Current Date: %s"), *GetFormattedDate());
+	UE_LOG(LogTemp, Log, TEXT("Current Time: %s"), *GetFormattedTime());
+	UE_LOG(LogTemp, Log, TEXT("Full DateTime: %s"), *GetFormattedDateTime());
+	UE_LOG(LogTemp, Log, TEXT("Elapsed Days: %.2f"), (float)GetElapsedDays());
+	UE_LOG(LogTemp, Log, TEXT("Total Elapsed: %.1f hours (%.1f seconds)"), 
+		(float)(UniverseData.CurrentTime.TotalElapsedSeconds / 3600.0), 
+		(float)UniverseData.CurrentTime.TotalElapsedSeconds);
+	UE_LOG(LogTemp, Log, TEXT("Time Scale: %.1fx (1 real hour = %.1f game hours)"),
+		UniverseData.Config.TimeScale,
+		UniverseData.Config.TimeScale);
+	UE_LOG(LogTemp, Log, TEXT("Time Paused: %s"), bTimePaused ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Log, TEXT("===================================="));
 }
 
 TArray<int32> UUniverseSubsystem::FindPathInternal(int32 StartId, int32 EndId) const
@@ -370,6 +473,14 @@ void UUniverseSubsystem::InitializeEconomy()
 		return;
 	}
 
+	// Only server/standalone can initialize economy
+	// Clients will query market data on-demand (future networking sprint)
+	if (IsClient())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Clients cannot initialize economy - server authority required!"));
+		return;
+	}
+
 	// Get economy subsystem
 	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
 	if (!EconomySubsystem)
@@ -381,7 +492,7 @@ void UUniverseSubsystem::InitializeEconomy()
 	// Initialize economy with our universe data
 	EconomySubsystem->InitializeEconomy(UniverseData);
 
-	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Economy initialized for universe"));
+	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Economy initialized for universe (Server/Standalone)"));
 }
 
 void UUniverseSubsystem::SetActiveEconomySystem(int32 SystemId)
@@ -389,6 +500,14 @@ void UUniverseSubsystem::SetActiveEconomySystem(int32 SystemId)
 	if (!bIsGenerated)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot set active system: universe not generated"));
+		return;
+	}
+
+	// Only server/standalone can set active system
+	// This will be the hook for "player enters system = wake up live sim"
+	if (IsClient())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Clients cannot set active economy system - server authority required!"));
 		return;
 	}
 
@@ -400,16 +519,13 @@ void UUniverseSubsystem::SetActiveEconomySystem(int32 SystemId)
 	}
 
 	EconomySubsystem->SetActiveSystem(UniverseData, SystemId);
+
+	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Active economy system set to %d (Server/Standalone)"), SystemId);
 }
 
 int32 UUniverseSubsystem::GetActiveEconomySystemId() const
 {
 	return UniverseData.ActiveSystemId;
-}
-
-double UUniverseSubsystem::GetCurrentGameTime() const
-{
-	return UniverseData.CurrentGameTime;
 }
 
 FMarketState UUniverseSubsystem::GetMarketState(int32 SystemId, int32 LocationId) const
@@ -492,5 +608,148 @@ void UUniverseSubsystem::PrintEconomyStats() const
 	}
 
 	EconomySubsystem->PrintEconomyStats(UniverseData);
+}
+
+// Game Time Functions
+
+FUniverseTime UUniverseSubsystem::GetGameTime() const
+{
+	return UniverseData.CurrentTime;
+}
+
+FString UUniverseSubsystem::GetFormattedDate() const
+{
+	const FUniverseTime& Time = UniverseData.CurrentTime;
+	FString MonthName = GetMonthName(Time.Month);
+	return FString::Printf(TEXT("%s %d, %d"), *MonthName, Time.Day, Time.Year);
+}
+
+FString UUniverseSubsystem::GetFormattedTime() const
+{
+	const FUniverseTime& Time = UniverseData.CurrentTime;
+	return FString::Printf(TEXT("%02d:%02d:%02d"), Time.Hour, Time.Minute, Time.Second);
+}
+
+FString UUniverseSubsystem::GetFormattedDateTime() const
+{
+	return FString::Printf(TEXT("%s %s"), *GetFormattedDate(), *GetFormattedTime());
+}
+
+int32 UUniverseSubsystem::GetElapsedDays() const
+{
+	// Convert total elapsed seconds to days
+	return FMath::FloorToInt(UniverseData.CurrentTime.TotalElapsedSeconds / 86400.0);
+}
+
+void UUniverseSubsystem::SetTimeScale(float NewTimeScale)
+{
+	UniverseData.Config.TimeScale = FMath::Max(0.0f, NewTimeScale);
+	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Time scale set to %.2f"), UniverseData.Config.TimeScale);
+}
+
+float UUniverseSubsystem::GetTimeScale() const
+{
+	return UniverseData.Config.TimeScale;
+}
+
+void UUniverseSubsystem::SetTimePaused(bool bPaused)
+{
+	bTimePaused = bPaused;
+	UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Time %s"), bPaused ? TEXT("paused") : TEXT("resumed"));
+}
+
+bool UUniverseSubsystem::IsTimePaused() const
+{
+	return bTimePaused;
+}
+
+// Private helper functions
+
+bool UUniverseSubsystem::IsLeapYear(int32 Year) const
+{
+	// Leap year if divisible by 4, except century years must be divisible by 400
+	if (Year % 400 == 0) return true;
+	if (Year % 100 == 0) return false;
+	if (Year % 4 == 0) return true;
+	return false;
+}
+
+int32 UUniverseSubsystem::GetDaysInMonth(int32 Month, int32 Year) const
+{
+	static const int32 DaysPerMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+	if (Month < 1 || Month > 12)
+		return 30; // Default fallback
+
+	int32 Days = DaysPerMonth[Month - 1];
+
+	// Add leap day for February
+	if (Month == 2 && IsLeapYear(Year))
+		Days++;
+
+	return Days;
+}
+
+FString UUniverseSubsystem::GetMonthName(int32 Month) const
+{
+	static const TArray<FString> MonthNames = {
+		TEXT("January"), TEXT("February"), TEXT("March"), TEXT("April"),
+		TEXT("May"), TEXT("June"), TEXT("July"), TEXT("August"),
+		TEXT("September"), TEXT("October"), TEXT("November"), TEXT("December")
+	};
+
+	if (Month < 1 || Month > 12)
+		return TEXT("Unknown");
+
+	return MonthNames[Month - 1];
+}
+
+void UUniverseSubsystem::UpdateGameTime(double DeltaGameSeconds)
+{
+	FUniverseTime& Time = UniverseData.CurrentTime;
+
+	// Add to total elapsed time
+	Time.TotalElapsedSeconds += DeltaGameSeconds;
+
+	// Add seconds
+	Time.Second += FMath::FloorToInt(DeltaGameSeconds);
+	DeltaGameSeconds -= FMath::FloorToInt(DeltaGameSeconds);
+
+	// Handle second overflow
+	if (Time.Second >= 60)
+	{
+		int32 Minutes = Time.Second / 60;
+		Time.Second = Time.Second % 60;
+		Time.Minute += Minutes;
+	}
+
+	// Handle minute overflow
+	if (Time.Minute >= 60)
+	{
+		int32 Hours = Time.Minute / 60;
+		Time.Minute = Time.Minute % 60;
+		Time.Hour += Hours;
+	}
+
+	// Handle hour overflow
+	if (Time.Hour >= 24)
+	{
+		int32 Days = Time.Hour / 24;
+		Time.Hour = Time.Hour % 24;
+		Time.Day += Days;
+	}
+
+	// Handle day/month/year overflow
+	while (Time.Day > GetDaysInMonth(Time.Month, Time.Year))
+	{
+		Time.Day -= GetDaysInMonth(Time.Month, Time.Year);
+		Time.Month++;
+
+		if (Time.Month > 12)
+		{
+			Time.Month = 1;
+			Time.Year++;
+		}
+	}
 }
 

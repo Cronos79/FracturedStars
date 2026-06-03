@@ -405,6 +405,60 @@ struct FStarSystemData
 };
 
 /**
+ * Universe time tracking
+ * Represents the current in-game date and time for the universe simulation
+ */
+USTRUCT(BlueprintType)
+struct FUniverseTime
+{
+	GENERATED_BODY()
+
+	// Calendar date
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Year;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Month; // 1-12 (January = 1)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Day; // 1-31
+
+	// Time of day
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Hour; // 0-23
+
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Minute; // 0-59
+
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	int32 Second; // 0-59
+
+	// Total elapsed time since start (in seconds)
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	double TotalElapsedSeconds;
+
+	FUniverseTime()
+		: Year(2094)
+		, Month(7)
+		, Day(8)
+		, Hour(0)
+		, Minute(0)
+		, Second(0)
+		, TotalElapsedSeconds(0.0)
+	{}
+
+	FUniverseTime(int32 InYear, int32 InMonth, int32 InDay, int32 InHour = 0, int32 InMinute = 0, int32 InSecond = 0)
+		: Year(InYear)
+		, Month(InMonth)
+		, Day(InDay)
+		, Hour(InHour)
+		, Minute(InMinute)
+		, Second(InSecond)
+		, TotalElapsedSeconds(0.0)
+	{}
+};
+
+/**
  * Universe generation configuration
  * Parameters controlling universe generation
  */
@@ -449,6 +503,21 @@ struct FUniverseConfig
 	UPROPERTY(BlueprintReadWrite, Category = "Economy")
 	float BackgroundSimulationChunk = 24.0f;
 
+	// Game time configuration
+	UPROPERTY(BlueprintReadWrite, Category = "Time")
+	int32 StartYear = 2094;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Time")
+	int32 StartMonth = 7; // July
+
+	UPROPERTY(BlueprintReadWrite, Category = "Time")
+	int32 StartDay = 8;
+
+	// Time scale: 1 real second = TimeScale game seconds
+	// Default: 24.0 (1 real hour = 1 game day)
+	UPROPERTY(BlueprintReadWrite, Category = "Time")
+	float TimeScale = 24.0f;
+
 	FUniverseConfig()
 		: Seed(12345)
 		, SystemCount(500)
@@ -459,6 +528,10 @@ struct FUniverseConfig
 		, GalacticRadius(100000.0f)
 		, EconomyTickRate(5.0f)
 		, BackgroundSimulationChunk(24.0f)
+		, StartYear(2094)
+		, StartMonth(7)
+		, StartDay(8)
+		, TimeScale(24.0f)
 	{}
 };
 
@@ -487,17 +560,16 @@ struct FUniverseData
 	UPROPERTY(BlueprintReadOnly, Category = "Universe")
 	FDateTime GenerationTime;
 
-	// Sprint 3: Current game time (seconds since universe creation)
-	UPROPERTY(BlueprintReadOnly, Category = "Economy")
-	double CurrentGameTime = 0.0;
+	// Game time tracking
+	UPROPERTY(BlueprintReadOnly, Category = "Time")
+	FUniverseTime CurrentTime;
 
 	// Sprint 3: Active system ID for real-time economy simulation (-1 = none)
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	int32 ActiveSystemId = -1;
 
 	FUniverseData()
-		: CurrentGameTime(0.0)
-		, ActiveSystemId(-1)
+		: ActiveSystemId(-1)
 	{
 		GenerationTime = FDateTime::Now();
 	}

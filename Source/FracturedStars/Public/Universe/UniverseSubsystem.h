@@ -80,6 +80,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
 	void PrintSystemInfo(int32 SystemId) const;
 
+	/**
+	 * Print current game time info
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
+	void PrintTimeInfo() const;
+
 	// Sprint 2: Content query functions
 
 	/**
@@ -128,12 +134,6 @@ public:
 	int32 GetActiveEconomySystemId() const;
 
 	/**
-	 * Get current game time (seconds since universe creation)
-	 */
-	UFUNCTION(BlueprintPure, Category = "Universe|Economy")
-	double GetCurrentGameTime() const;
-
-	/**
 	 * Get market state at a location
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
@@ -163,6 +163,63 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
 	void PrintEconomyStats() const;
 
+	// Game Time Functions
+
+	/**
+	 * Get current game time and date
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	FUniverseTime GetGameTime() const;
+
+	/**
+	 * Get formatted date string (e.g., "July 8, 2094")
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	FString GetFormattedDate() const;
+
+	/**
+	 * Get formatted time string (e.g., "14:35:22")
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	FString GetFormattedTime() const;
+
+	/**
+	 * Get formatted date and time (e.g., "July 8, 2094 14:35:22")
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	FString GetFormattedDateTime() const;
+
+	/**
+	 * Get elapsed days since universe start
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	int32 GetElapsedDays() const;
+
+	/**
+	 * Set time scale multiplier (how fast time passes)
+	 * Default: 24.0 (1 real second = 24 game seconds)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Time")
+	void SetTimeScale(float NewTimeScale);
+
+	/**
+	 * Get current time scale
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	float GetTimeScale() const;
+
+	/**
+	 * Enable/disable time advancement
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Time")
+	void SetTimePaused(bool bPaused);
+
+	/**
+	 * Check if time is paused
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Time")
+	bool IsTimePaused() const;
+
 private:
 	UPROPERTY()
 	FUniverseData UniverseData;
@@ -170,6 +227,23 @@ private:
 	UPROPERTY()
 	bool bIsGenerated = false;
 
+	UPROPERTY()
+	bool bTimePaused = false;
+
+	// Timer handle for time advancement
+	FTimerHandle TimeAdvancementTimer;
+
+	// Network authority helpers
+	bool IsAuthority() const;
+	bool IsClient() const;
+
 	// BFS pathfinding helper
 	TArray<int32> FindPathInternal(int32 StartId, int32 EndId) const;
+
+	// Time advancement helpers
+	void AdvanceTime(float DeltaSeconds);
+	void UpdateGameTime(double DeltaGameSeconds);
+	bool IsLeapYear(int32 Year) const;
+	int32 GetDaysInMonth(int32 Month, int32 Year) const;
+	FString GetMonthName(int32 Month) const;
 };

@@ -239,8 +239,7 @@ void UEconomySubsystem::InitializeEconomy(FUniverseData& UniverseData)
 		}
 	}
 
-	// Initialize game time
-	UniverseData.CurrentGameTime = 0.0;
+	// Initialize game time (already set in UniverseSubsystem)
 	UniverseData.ActiveSystemId = -1;
 
 	UE_LOG(LogTemp, Log, TEXT("[EconomySubsystem] Economy initialized: %d locations, %d active markets"),
@@ -452,9 +451,8 @@ void UEconomySubsystem::TickActiveSystemEconomy(FUniverseData& UniverseData, flo
 		return;
 	}
 
-	// Advance game time
+	// Advance game time (done by UniverseSubsystem now)
 	float DeltaHours = DeltaTime / 3600.0f; // Convert seconds to hours
-	UniverseData.CurrentGameTime += DeltaTime;
 
 	// Simulate active system
 	FStarSystemData& ActiveSystem = UniverseData.Systems[UniverseData.ActiveSystemId];
@@ -464,7 +462,7 @@ void UEconomySubsystem::TickActiveSystemEconomy(FUniverseData& UniverseData, flo
 		if (Location.Market.Goods.Num() > 0)
 		{
 			SimulateLocationEconomy(Location, DeltaHours, GoodsCatalog);
-			Location.Market.LastUpdateTime = UniverseData.CurrentGameTime;
+			Location.Market.LastUpdateTime = UniverseData.CurrentTime.TotalElapsedSeconds;
 		}
 	}
 }
@@ -479,7 +477,7 @@ void UEconomySubsystem::CatchUpSystemEconomy(FUniverseData& UniverseData, int32 
 	FStarSystemData& System = UniverseData.Systems[SystemId];
 
 	// Find earliest last update time in system
-	double EarliestUpdate = UniverseData.CurrentGameTime;
+	double EarliestUpdate = UniverseData.CurrentTime.TotalElapsedSeconds;
 	for (const FLocationData& Location : System.Locations)
 	{
 		if (Location.Market.Goods.Num() > 0)
@@ -489,7 +487,7 @@ void UEconomySubsystem::CatchUpSystemEconomy(FUniverseData& UniverseData, int32 
 	}
 
 	// Calculate time delta
-	double TimeDelta = UniverseData.CurrentGameTime - EarliestUpdate;
+	double TimeDelta = UniverseData.CurrentTime.TotalElapsedSeconds - EarliestUpdate;
 	if (TimeDelta <= 0.0)
 	{
 		return; // Already up to date
@@ -516,7 +514,7 @@ void UEconomySubsystem::CatchUpSystemEconomy(FUniverseData& UniverseData, int32 
 	// Update last simulation time
 	for (FLocationData& Location : System.Locations)
 	{
-		Location.Market.LastUpdateTime = UniverseData.CurrentGameTime;
+		Location.Market.LastUpdateTime = UniverseData.CurrentTime.TotalElapsedSeconds;
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("[EconomySubsystem] Caught up system %s: %.1f hours in %d chunks"),
@@ -736,7 +734,7 @@ void UEconomySubsystem::PrintEconomyStats(const FUniverseData& UniverseData) con
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("=== Economy Statistics ==="));
-	UE_LOG(LogTemp, Log, TEXT("Game Time: %.1f hours"), UniverseData.CurrentGameTime / 3600.0f);
+	UE_LOG(LogTemp, Log, TEXT("Game Time: %.1f hours"), UniverseData.CurrentTime.TotalElapsedSeconds / 3600.0f);
 	UE_LOG(LogTemp, Log, TEXT("Active System: %d"), UniverseData.ActiveSystemId);
 	UE_LOG(LogTemp, Log, TEXT("Total Locations: %d"), TotalLocations);
 	UE_LOG(LogTemp, Log, TEXT("Active Markets: %d"), ActiveMarkets);
