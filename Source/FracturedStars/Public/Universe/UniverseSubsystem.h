@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright (c) 2026 Matthew / FracturedStars. All Rights Reserved.
 
 #pragma once
 
@@ -163,6 +163,42 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Universe|Debug")
 	void PrintEconomyStats() const;
 
+	// Player Presence Tracking (Phase 2: Multiplayer)
+
+	/**
+	 * Register a player entering a system
+	 * Server-only: Wakes up system if first player, triggers catch-up and live simulation
+	 * @param Player - Player controller entering the system
+	 * @param SystemId - System being entered
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Multiplayer")
+	void OnPlayerEnterSystem(APlayerController* Player, int32 SystemId);
+
+	/**
+	 * Register a player leaving a system
+	 * Server-only: Puts system to sleep if last player, stops live simulation
+	 * @param Player - Player controller leaving the system
+	 * @param SystemId - System being left
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Multiplayer")
+	void OnPlayerLeaveSystem(APlayerController* Player, int32 SystemId);
+
+	/**
+	 * Check if any players are currently in a system
+	 * @param SystemId - System to check
+	 * @return True if at least one player is in the system
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Multiplayer")
+	bool HasPlayersInSystem(int32 SystemId) const;
+
+	/**
+	 * Get count of players in a system
+	 * @param SystemId - System to check
+	 * @return Number of players currently in the system
+	 */
+	UFUNCTION(BlueprintPure, Category = "Universe|Multiplayer")
+	int32 GetPlayerCountInSystem(int32 SystemId) const;
+
 	// Game Time Functions
 
 	/**
@@ -229,6 +265,10 @@ private:
 
 	UPROPERTY()
 	bool bTimePaused = false;
+
+	// Player presence tracking: SystemId -> Array of players in that system
+	// Server-only: Used to determine which systems need active simulation
+	TMap<int32, TArray<APlayerController*>> PlayersInSystem;
 
 	// Timer handle for time advancement
 	FTimerHandle TimeAdvancementTimer;

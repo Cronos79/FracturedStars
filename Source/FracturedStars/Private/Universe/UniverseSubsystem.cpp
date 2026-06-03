@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright (c) 2026 Matthew / FracturedStars. All Rights Reserved.
 
 #include "Universe/UniverseSubsystem.h"
 #include "Universe/UniverseGenerator.h"
@@ -511,6 +511,13 @@ void UUniverseSubsystem::SetActiveEconomySystem(int32 SystemId)
 		return;
 	}
 
+	// Phase 2: Warn if trying to activate a system with no players
+	// (Allowed for manual testing, but in production should only be player-driven)
+	if (!HasPlayersInSystem(SystemId))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Setting active system %d with no players present (manual override)"), SystemId);
+	}
+
 	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
 	if (!EconomySubsystem)
 	{
@@ -750,6 +757,150 @@ void UUniverseSubsystem::UpdateGameTime(double DeltaGameSeconds)
 			Time.Month = 1;
 			Time.Year++;
 		}
+	}
+}
+
+// Player Presence Tracking (Phase 2: Multiplayer)
+
+bool UUniverseSubsystem::HasPlayersInSystem(int32 SystemId) const
+{
+	const TArray<APlayerController*>* Players = PlayersInSystem.Find(SystemId);
+	return Players && Players->Num() > 0;
+}
+
+int32 UUniverseSubsystem::GetPlayerCountInSystem(int32 SystemId) const
+{
+	const TArray<APlayerController*>* Players = PlayersInSystem.Find(SystemId);
+	return Players ? Players->Num() : 0;
+}
+
+void UUniverseSubsystem::OnPlayerEnterSystem(APlayerController* Player, int32 SystemId)
+{
+	// Server-only operation
+	if (IsClient())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Clients cannot register player presence - server authority required!"));
+		return;
+	}
+
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] OnPlayerEnterSystem called with null player!"));
+		return;
+	}
+
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot enter system: universe not generated"));
+		return;
+	}
+
+	if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Invalid system ID: %d"), SystemId);
+		return;
+	}
+
+	// Check if this is the first player in the system
+	bool bWasEmpty = !HasPlayersInSystem(SystemId);
+
+	// Add player to tracking
+	TArray<APlayerController*>& Players = PlayersInSystem.FindOrAdd(SystemId);
+
+	// Prevent duplicate entries
+	if (!Players.Contains(Player))
+	{
+		Players.Add(Player);
+
+		const FStarSystemData& System = UniverseData.Systems[SystemId];
+		UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Player entered %s (ID: %d). Players in system: %d"), 
+			*System.SystemName, SystemId, Players.Num());
+
+		// If this is the first player, wake up the system (catch-up + live simulation)
+		if (bWasEmpty)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] First player in system - waking up live simulation"));
+			SetActiveEconomySystem(SystemId);
+		}
+	}
+}
+
+void UUniverseSubsystem::OnPlayerLeaveSystem(APlayerController* Player, int32 SystemId)
+{
+	// Server-only operation
+	if (IsClient())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Clients cannot unregister player presence - server authority required!"));
+		return;
+	}
+
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] OnPlayerLeaveSystem called with null player!"));
+		return;
+	}
+
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot leave system: universe not generated"));
+		return;
+	}
+
+	// Find the players array for this system
+	TArray<APlayerController*>* Players = PlayersInSystem.Find(SystemId);
+	if (!Players)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] No players tracked in system %d"), SystemId);
+		return;
+	}
+
+	// Remove the player
+	int32 RemovedCount = Players->Remove(Player);
+	if (RemovedCount > 0)
+	{
+		const FStarSystemData& System = UniverseData.Systems[SystemId];
+		UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Player left %s (ID: %d). Players remaining: %d"), 
+			*System.SystemName, SystemId, Players->Num());
+
+		// If this was the last player, put system to sleep (stop live simulation)
+		if (Players->Num() == 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Last player left system - putting to sleep mode"));
+
+			// Get economy subsystem to stop active simulation
+			UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
+			if (EconomySubsystem)
+			{
+				// Clear active system if this was the active one
+				if (UniverseData.ActiveSystemId == SystemId)
+				{
+					// Mark locations as inactive
+					FStarSystemData& ActiveSystem = UniverseData.Systems[SystemId];
+					for (FLocationData& Location : ActiveSystem.Locations)
+					{
+						Location.Market.bIsActiveSimulation = false;
+					}
+
+					// Clear active system ID (sleep mode)
+					UniverseData.ActiveSystemId = -1;
+
+					// Clear the economy tick timer (via GetWorld)
+					if (UWorld* World = GetWorld())
+					{
+						// Note: Timer is owned by EconomySubsystem, so we can't directly clear it here
+						// The EconomySubsystem will detect ActiveSystemId == -1 and stop ticking
+						UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] System put to sleep - ActiveSystemId cleared"));
+					}
+				}
+			}
+
+			// Clean up empty array from map
+			PlayersInSystem.Remove(SystemId);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Player was not found in system %d tracking"), SystemId);
 	}
 }
 
