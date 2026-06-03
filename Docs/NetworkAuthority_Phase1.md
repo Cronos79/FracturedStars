@@ -71,23 +71,69 @@ These helpers check `UWorld::GetNetMode()` to determine:
 - Only pays performance cost for systems with active players
 - Natural integration with fog-of-war (client only sees their system)
 
-## Client Read Access
+## Critical Rule: Server Truth vs Client Cache
 
-### Query Functions (No Authority Check Needed)
-These functions are safe for clients to call - they only read data:
-- `GetUniverseData()` - Returns const reference to universe state
-- `GetSystemById()` - Read-only system query
-- `GetMarketState()` - Queries economy state (future: fog-of-war filtered)
-- `GetGoodPrice()` - Reads market prices
-- `HasShortage()` - Checks market state
-- All other query/getter functions
+**The server owns all authoritative universe state.**
+
+### Client Data Access Rules
+1. **Static Structure (Seed-Based)**:
+   - Clients may use the shared seed to build a local static map cache for display purposes only
+   - Client-generated data must be treated as non-authoritative
+   - Useful for navigation UI, galaxy map, system layout visualization
+   - Does NOT include ownership, missions, patrols, or any dynamic state
+
+2. **Dynamic State (Server-Only)**:
+   - Market inventory, shortages, pricing
+   - Faction control changes
+   - Active ships, missions, patrols
+   - Conflict zones and territory disputes
+   - **Must come from server and must be filtered by player visibility**
+
+3. **Fog-of-War Enforcement**:
+   - Clients must not receive or calculate hidden live state for systems outside their visibility
+   - Static structure may be known or partially known depending on fog-of-war rules
+   - Server is the single source of truth for what players can "see"
+
+### Query Functions - Development Warning
+
+⚠️ **Current Query APIs Are Development-Only**
+
+These functions exist for single-player and early development:
+- `GetUniverseData()` - **DANGEROUS LONG-TERM**: Returns const reference to full universe state
+- `GetSystemById()` - Exposes complete system data
+- `GetMarketState()` - No visibility filtering yet
+- `GetGoodPrice()` - No fog-of-war checks
+- `HasShortage()` - Server state without visibility rules
+
+### Before Multiplayer/Fog-of-War:
+**Do not expose full `UniverseData` to clients long-term.**
+
+Replace broad access with filtered query APIs:
+- `UniverseSubsystem` is server authority storage, **not the final replication vehicle**
+- Replicated client-facing state should be exposed through:
+  - `AGameStateBase` subclass with replicated properties
+  - Replicated actors (systems, stations, ships)
+  - Server RPC responses (request/response pattern)
+  - Dedicated visibility data objects (per-player fog-of-war state)
 
 ### Future Fog-of-War Integration
 When fog-of-war is implemented:
-1. Clients can query static universe structure (generated locally from seed)
-2. Clients can only query live economy data for their current system
-3. Server sends deltas/updates only for the player's visible slice
-4. Bandwidth optimization: Don't replicate 500 systems, only 1-2 active ones
+1. **Static Map Cache** (Client-Side):
+   - Clients generate local universe structure from seed (display only)
+   - No authority, no gameplay impact, visual reference only
+   - Shows system positions, names, connections (as discovered)
+
+2. **Dynamic Data** (Server-Filtered):
+   - Server tracks per-player visibility (current system, explored systems, etc.)
+   - Clients request data only for visible systems via RPC
+   - Server sends deltas/updates only for player's visible slice
+   - Bandwidth optimization: Don't replicate 500 systems, only 1-2 active ones
+
+3. **Visibility-Based Queries**:
+   - `GetVisibleSystemsForPlayer(APlayerController*)` - Returns player's fog-of-war slice
+   - `RequestMarketData(SystemId)` - Server RPC with visibility validation
+   - `GetPlayerSystemId()` - Current location (always visible)
+   - All queries must pass through server authority and visibility checks
 
 ## Build Status
 ✅ **Build Successful**
@@ -119,6 +165,39 @@ When fog-of-war is implemented:
 - [ ] Only live data (prices, shortages, time) differs based on authority
 
 ## Next Steps (Phase 2)
+
+### ⚠️ Refactoring Required Before Multiplayer
+
+#### Current Danger Zones:
+1. **`GetUniverseData()` returns full universe state**
+   - **Risk**: Client could read all 500 systems, all markets, all faction data
+   - **Fix**: Remove or restrict to server-only debugging
+   - **Replace With**: Filtered query APIs through GameState
+
+2. **Blueprint-exposed query functions lack visibility checks**
+   - **Risk**: `GetSystemById(int32)` works for ANY system ID
+   - **Fix**: Add `IsSystemVisibleToPlayer(PlayerController, SystemId)` checks
+   - **Replace With**: `GetVisibleSystemById(PlayerController, SystemId)`
+
+3. **No per-player fog-of-war state**
+   - **Risk**: Can't track what each player has discovered/can see
+   - **Fix**: Add `TMap<APlayerController*, FFogOfWarState>` to track visibility
+   - **Replace With**: Visibility manager that gates all queries
+
+4. **Market queries don't validate player location**
+   - **Risk**: Player could query markets in systems they're not in
+   - **Fix**: Add location validation: `if (PlayerSystemId != RequestedSystemId) return`
+   - **Replace With**: Server RPC with visibility validation
+
+#### Concrete Refactoring Tasks:
+- [ ] Create `AMyGameState` with replicated visible systems list
+- [ ] Create `FFogOfWarState` struct to track player visibility
+- [ ] Add `UFogOfWarManager` subsystem or component
+- [ ] Convert `GetMarketState` → `Server_RequestMarketData` RPC
+- [ ] Convert `GetSystemById` → `GetVisibleSystemById` with checks
+- [ ] Remove or deprecate `GetUniverseData()` for client access
+- [ ] Add `OnPlayerDiscoverSystem` event for fog-of-war updates
+- [ ] Implement visibility radius or jump-based exploration rules
 
 ### Player Presence Integration
 1. Add player tracking to `UUniverseSubsystem`:
@@ -156,10 +235,50 @@ When fog-of-war is implemented:
 
 ## Architecture Benefits
 ✅ **Server Authority**: Prevents client-side cheating  
-✅ **Deterministic Static Data**: Clients can generate universe locally from seed  
+✅ **Deterministic Static Data**: Clients can generate universe locally from seed (display only)  
 ✅ **Fog-of-War Ready**: Foundation for bandwidth-efficient multiplayer  
 ✅ **Two-Tier Economy Preserved**: Active/background simulation still works  
 ✅ **Non-Breaking**: All existing single-player functionality intact  
+
+⚠️ **Development Warning**: Current broad data access APIs are temporary scaffolding
+
+## Proper Networking Architecture (Future)
+
+### Server Side (Authority)
+```
+UUniverseSubsystem (Server Storage)
+  ↓
+AMyGameState (Replicated State)
+  ↓ (filtered by visibility)
+Client-Safe Data
+```
+
+### Client Side (Read-Only)
+```
+Client UI/Gameplay
+  ↓ (RPC request)
+Server Authority Check
+  ↓ (visibility filtered response)
+Client Receives Safe Data
+```
+
+### Example Proper Pattern:
+```cpp
+// ❌ BAD (Current Dev Pattern):
+const FUniverseData& Data = UniverseSubsystem->GetUniverseData();
+// Exposes everything, no filtering, dangerous for multiplayer
+
+// ✅ GOOD (Future Multiplayer Pattern):
+AMyGameState* GameState = GetWorld()->GetGameState<AMyGameState>();
+TArray<FSystemInfo> VisibleSystems = GameState->GetVisibleSystems(PlayerController);
+// Filtered by server, replicated safely, fog-of-war enforced
+```
+
+### Key Principles:
+1. **Subsystem = Server Storage**: Never directly accessed by client logic
+2. **GameState/Actors = Replication Layer**: Bridge between server authority and clients
+3. **RPCs = Request/Response**: Client asks, server validates visibility, responds with filtered data
+4. **Client Cache = Display Only**: Seed-generated data has no gameplay authority
 
 ---
 
