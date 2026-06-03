@@ -164,37 +164,47 @@ public:
 	void PrintEconomyStats() const;
 
 	// Player Presence Tracking (Phase 2: Multiplayer)
+	// NOTE: For RTS/Stellaris-style gameplay, "entering/leaving" refers to camera focus/observation,
+	// not physical player location. Player is a strategic controller viewing systems via UI.
 
 	/**
-	 * Register a player entering a system
+	 * Register a player focusing on a system (camera/UI observation)
 	 * Server-only: Wakes up system if first player, triggers catch-up and live simulation
-	 * @param Player - Player controller entering the system
-	 * @param SystemId - System being entered
+	 * 
+	 * RTS Model: This is called when player's camera/UI focuses on a system (galaxy map click,
+	 * system detail panel open, etc). NOT when a player character physically enters.
+	 * 
+	 * @param Player - Player controller focusing on the system
+	 * @param SystemId - System being observed
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Universe|Multiplayer")
 	void OnPlayerEnterSystem(APlayerController* Player, int32 SystemId);
 
 	/**
-	 * Register a player leaving a system
+	 * Register a player unfocusing from a system (camera/UI switches away)
 	 * Server-only: Puts system to sleep if last player, stops live simulation
-	 * @param Player - Player controller leaving the system
-	 * @param SystemId - System being left
+	 * 
+	 * RTS Model: Called when player's camera/UI switches to a different system or closes
+	 * the system view. System returns to background/catch-up mode if no other players watching.
+	 * 
+	 * @param Player - Player controller unfocusing from the system
+	 * @param SystemId - System no longer being observed
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Universe|Multiplayer")
 	void OnPlayerLeaveSystem(APlayerController* Player, int32 SystemId);
 
 	/**
-	 * Check if any players are currently in a system
+	 * Check if any players are currently observing a system
 	 * @param SystemId - System to check
-	 * @return True if at least one player is in the system
+	 * @return True if at least one player is watching/focusing on the system
 	 */
 	UFUNCTION(BlueprintPure, Category = "Universe|Multiplayer")
 	bool HasPlayersInSystem(int32 SystemId) const;
 
 	/**
-	 * Get count of players in a system
+	 * Get count of players observing a system
 	 * @param SystemId - System to check
-	 * @return Number of players currently in the system
+	 * @return Number of players currently watching the system
 	 */
 	UFUNCTION(BlueprintPure, Category = "Universe|Multiplayer")
 	int32 GetPlayerCountInSystem(int32 SystemId) const;

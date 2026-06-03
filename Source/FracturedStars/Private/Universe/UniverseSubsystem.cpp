@@ -761,6 +761,8 @@ void UUniverseSubsystem::UpdateGameTime(double DeltaGameSeconds)
 }
 
 // Player Presence Tracking (Phase 2: Multiplayer)
+// RTS/Stellaris Model: Player is a strategic camera controller, not a physical character
+// "Enter/Leave" refers to UI focus/observation, not physical location in the game world
 
 bool UUniverseSubsystem::HasPlayersInSystem(int32 SystemId) const
 {
