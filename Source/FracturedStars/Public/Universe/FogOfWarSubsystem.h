@@ -319,4 +319,7 @@ private:
 
 	// Helper: Take snapshot of current real state for known state
 	void SnapshotRealState(int32 PlayerId, FName SystemId);
+
+	// Helper: Ensure UniverseSubsystem reference is valid (lazy initialization)
+	UUniverseSubsystem* EnsureUniverseSubsystem() const;
 };

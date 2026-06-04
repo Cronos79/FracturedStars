@@ -11,6 +11,26 @@ This document provides test scenarios and validation procedures for the fog-of-w
 - **Client Filtering**: Clients receive only visibility-approved data
 - **Visibility Levels**: Hidden → Known → Surveyed → ActiveObservation
 
+## Important: Player Registration Required
+
+**Before calling any fog-of-war functions, you MUST register the player:**
+
+```blueprint
+// FIRST: Register the player (SERVER ONLY)
+FogOfWarSubsystem->RegisterPlayer(PlayerId);
+
+// THEN: Call any other fog-of-war functions
+FogOfWarSubsystem->DiscoverSystem(PlayerId, SystemId);
+FogOfWarSubsystem->GetSystemVisibility(PlayerId, SystemId);
+// etc.
+```
+
+**Why?** The fog-of-war subsystem maintains per-player state that must be initialized before any operations can succeed. Without registration, all queries will return "Player has no fog-of-war state."
+
+**Authority Check**: `RegisterPlayer` automatically checks if running on server and will log a warning if called on client.
+
+**Lazy Initialization**: The fog-of-war subsystem uses lazy initialization for its UniverseSubsystem reference, so it will work correctly regardless of subsystem initialization order.
+
 ## Debug/Test Functions
 
 The following BlueprintCallable debug functions are available for testing:
@@ -31,19 +51,21 @@ The following BlueprintCallable debug functions are available for testing:
 
 **Setup**:
 - Start with Player 1 in a fresh game
+- **CRITICAL**: Call `RegisterPlayer(1)` FIRST
 - Identify a system that is Hidden (never visited)
 
 **Test Steps**:
-1. Call `DebugPrintPlayerFogState(1)` - Confirm system is not in known list
-2. Call `GetSystemVisibility(1, SystemId)` - Should return `Hidden`
-3. Call `DiscoverSystem(1, SystemId)` - Player learns of the system
-4. Call `GetSystemVisibility(1, SystemId)` - Should return `Known`
-5. Call `CompleteSurvey(1, SystemId)` - Player surveys the system
-6. Call `GetSystemVisibility(1, SystemId)` - Should return `Surveyed`
-7. Call `OnPlayerFocusSystem(1, SystemId)` - Player enters the system
-8. Call `GetSystemVisibility(1, SystemId)` - Should return `ActiveObservation`
-9. Call `OnPlayerUnfocusSystem(1, SystemId)` - Player leaves
-10. Call `GetSystemVisibility(1, SystemId)` - Should return `Surveyed`
+1. **Call `RegisterPlayer(1)` - REQUIRED FIRST STEP**
+2. Call `DebugPrintPlayerFogState(1)` - Confirm system is not in known list
+3. Call `GetSystemVisibility(1, SystemId)` - Should return `Hidden`
+4. Call `DiscoverSystem(1, SystemId)` - Player learns of the system
+5. Call `GetSystemVisibility(1, SystemId)` - Should return `Known`
+6. Call `CompleteSurvey(1, SystemId)` - Player surveys the system
+7. Call `GetSystemVisibility(1, SystemId)` - Should return `Surveyed`
+8. Call `OnPlayerFocusSystem(1, SystemId)` - Player enters the system
+9. Call `GetSystemVisibility(1, SystemId)` - Should return `ActiveObservation`
+10. Call `OnPlayerUnfocusSystem(1, SystemId)` - Player leaves
+11. Call `GetSystemVisibility(1, SystemId)` - Should return `Surveyed`
 
 **Expected Results**:
 - Visibility progresses: Hidden → Known → Surveyed → ActiveObservation
@@ -61,11 +83,14 @@ The following BlueprintCallable debug functions are available for testing:
 **Objective**: Verify information ages correctly and queries reflect outdated data.
 
 **Setup**:
-- Player 1 has Surveyed a system
+- **CRITICAL**: Call `RegisterPlayer(1)` FIRST
+- Player 1 has Surveyed a system (use `CompleteSurvey(1, SystemId)`)
 - System has known population and market prices
 
 **Test Steps**:
-1. Call `DebugCompareRealVsKnown(1, SystemId)` - Note current state
+1. **Call `RegisterPlayer(1)` - REQUIRED FIRST STEP**
+2. Call `CompleteSurvey(1, SystemId)` - Ensure system is surveyed
+3. Call `DebugCompareRealVsKnown(1, SystemId)` - Note current state
 2. Call `DebugSimulateInformationAge(1, SystemId, 30.0)` - Age data by 30 days
 3. Call `DebugCompareRealVsKnown(1, SystemId)` - Verify "Age: 30.0 days"
 4. Call `GetVisiblePrice(1, SystemId, GoodType)` - Should return 30-day-old price

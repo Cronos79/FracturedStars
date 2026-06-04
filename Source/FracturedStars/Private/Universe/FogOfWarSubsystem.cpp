@@ -9,29 +9,10 @@ void UFogOfWarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Get reference to UniverseSubsystem for time/state queries
-	UniverseSubsystem = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+	// Note: UniverseSubsystem reference will be acquired lazily when first needed
+	// This avoids dependency on initialization order
 
-	// SERVER ONLY: Start periodic tick for information aging
-	if (UniverseSubsystem && UniverseSubsystem->IsAuthority())
-	{
-		UWorld* World = GetWorld();
-		if (World)
-		{
-			World->GetTimerManager().SetTimer(
-				TickTimerHandle,
-				FTimerDelegate::CreateUObject(this, &UFogOfWarSubsystem::TickFogOfWar, TickInterval),
-				TickInterval,
-				true  // Loop
-			);
-
-			UE_LOG(LogTemp, Log, TEXT("[FogOfWar] Initialized on SERVER - information aging active"));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("[FogOfWar] Initialized on CLIENT - no local state maintained"));
-	}
+	UE_LOG(LogTemp, Log, TEXT("[FogOfWar] Subsystem initialized (will determine authority when first accessed)"));
 }
 
 void UFogOfWarSubsystem::Deinitialize()
@@ -55,7 +36,8 @@ void UFogOfWarSubsystem::Deinitialize()
 
 void UFogOfWarSubsystem::RegisterPlayer(int32 PlayerId)
 {
-	if (!UniverseSubsystem || !UniverseSubsystem->IsAuthority())
+	UUniverseSubsystem* Universe = EnsureUniverseSubsystem();
+	if (!Universe || !Universe->IsAuthority())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[FogOfWar] RegisterPlayer called on CLIENT - ignoring"));
 		return;
@@ -988,7 +970,8 @@ void UFogOfWarSubsystem::DebugSimulateInformationAge(int32 PlayerId, FName Syste
 
 void UFogOfWarSubsystem::DebugCompareRealVsKnown(int32 PlayerId, FName SystemId) const
 {
-	if (!UniverseSubsystem)
+	UUniverseSubsystem* Universe = EnsureUniverseSubsystem();
+	if (!Universe)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[FogOfWar DEBUG] UniverseSubsystem not available"));
 		return;
@@ -1010,7 +993,7 @@ void UFogOfWarSubsystem::DebugCompareRealVsKnown(int32 PlayerId, FName SystemId)
 	}
 
 	// Get real system data
-	const FUniverseData& UniverseData = UniverseSubsystem->GetUniverseData();
+	const FUniverseData& UniverseData = Universe->GetUniverseData();
 	int32 SystemIdInt = FCString::Atoi(*SystemId.ToString());
 	const FStarSystemData* SystemData = UniverseData.Systems.FindByPredicate(
 		[SystemIdInt](const FStarSystemData& System) { return System.SystemId == SystemIdInt; }
@@ -1060,11 +1043,8 @@ void UFogOfWarSubsystem::DebugCompareRealVsKnown(int32 PlayerId, FName SystemId)
 	}
 
 	// Information age
-	if (UniverseSubsystem)
-	{
-		float Age = GetInformationAge(KnownState->LastObservationTime, UniverseSubsystem->GetGameTime());
-		UE_LOG(LogTemp, Log, TEXT("Information Age: %.2f days"), Age);
-	}
+	float Age = GetInformationAge(KnownState->LastObservationTime, Universe->GetGameTime());
+	UE_LOG(LogTemp, Log, TEXT("Information Age: %.2f days"), Age);
 
 	UE_LOG(LogTemp, Log, TEXT("=========================================================="));
 }
@@ -1095,5 +1075,45 @@ FString UFogOfWarSubsystem::DebugGetVisibilitySummary(int32 PlayerId) const
 
 	return FString::Printf(TEXT("Hidden: %d, Known: %d, Surveyed: %d, Active: %d"), 
 		HiddenCount, KnownCount, SurveyedCount, ActiveCount);
+}
+
+// ============================================================================
+// HELPER: Ensure UniverseSubsystem Reference
+// ============================================================================
+
+UUniverseSubsystem* UFogOfWarSubsystem::EnsureUniverseSubsystem() const
+{
+	// Lazy initialization - acquire reference on first use
+	if (!UniverseSubsystem)
+	{
+		// Cast away const for lazy initialization (common pattern for cached subsystem refs)
+		UFogOfWarSubsystem* MutableThis = const_cast<UFogOfWarSubsystem*>(this);
+		MutableThis->UniverseSubsystem = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+
+		if (!MutableThis->UniverseSubsystem)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[FogOfWar] Failed to acquire UniverseSubsystem reference"));
+			return nullptr;
+		}
+
+		// SERVER ONLY: Start periodic tick for information aging if we're on server
+		if (MutableThis->UniverseSubsystem->IsAuthority())
+		{
+			UWorld* World = GetWorld();
+			if (World && !MutableThis->TickTimerHandle.IsValid())
+			{
+				World->GetTimerManager().SetTimer(
+					MutableThis->TickTimerHandle,
+					FTimerDelegate::CreateUObject(MutableThis, &UFogOfWarSubsystem::TickFogOfWar, MutableThis->TickInterval),
+					MutableThis->TickInterval,
+					true  // Loop
+				);
+
+				UE_LOG(LogTemp, Log, TEXT("[FogOfWar] Started SERVER tick timer (authority confirmed)"));
+			}
+		}
+	}
+
+	return UniverseSubsystem;
 }
 
