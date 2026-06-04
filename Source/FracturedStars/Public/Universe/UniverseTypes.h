@@ -456,6 +456,129 @@ struct FUniverseTime
 		, Second(InSecond)
 		, TotalElapsedSeconds(0.0)
 	{}
+
+	// Comparison operators for information aging
+	bool operator>(const FUniverseTime& Other) const
+	{
+		return TotalElapsedSeconds > Other.TotalElapsedSeconds;
+	}
+
+	bool operator<(const FUniverseTime& Other) const
+	{
+		return TotalElapsedSeconds < Other.TotalElapsedSeconds;
+	}
+};
+
+// ============================================================================
+// SPRINT 3.5: FOG OF WAR - VISIBILITY & KNOWN STATE
+// ============================================================================
+// Server always maintains Real State (authoritative truth).
+// Client only receives Known State (filtered by visibility + information age).
+// These types support per-player information control.
+// NOTE: Placed after FUniverseTime because FSystemKnownState uses it.
+
+/**
+ * System visibility levels for fog-of-war
+ * Determines what information a player knows about a star system
+ */
+UENUM(BlueprintType)
+enum class ESystemVisibility : uint8
+{
+	// No information - system exists but player has never discovered it
+	Hidden				UMETA(DisplayName = "Hidden"),
+
+	// Basic info only - system discovered via nav data/rumors but never visited
+	// Player knows: name, region type, faction owner, jump connections
+	Known				UMETA(DisplayName = "Known"),
+
+	// Detailed survey completed - visited or scanned in detail
+	// Player knows: all celestial bodies, locations, static features
+	// Does NOT include live market/population/inventory data
+	Surveyed			UMETA(DisplayName = "Surveyed"),
+
+	// Currently observing - player has crew/ships/stations in system OR is actively focused
+	// Receives live updates (but still filtered by info age/crew capability)
+	ActiveObservation	UMETA(DisplayName = "Active Observation")
+};
+
+/**
+ * Known state snapshot of a system at a specific time
+ * SERVER ONLY - used to track what each player knows
+ * Client receives filtered data, never this full tracking struct
+ */
+USTRUCT()
+struct FSystemKnownState
+{
+	GENERATED_BODY()
+
+	// What visibility level does this player have?
+	UPROPERTY()
+	ESystemVisibility VisibilityLevel = ESystemVisibility::Hidden;
+
+	// When was this system last directly observed? (in game time)
+	UPROPERTY()
+	FUniverseTime LastObservationTime;
+
+	// When did we last receive intelligence/news about this system?
+	UPROPERTY()
+	FUniverseTime LastIntelligenceTime;
+
+	// Snapshot of known market prices (only if Surveyed+)
+	// Maps Good -> last known price
+	UPROPERTY()
+	TMap<EGoodType, float> KnownPrices;
+
+	// Snapshot of known shortages/surpluses (only if Surveyed+)
+	// Maps Good -> last known shortage state (negative = shortage, positive = surplus)
+	UPROPERTY()
+	TMap<EGoodType, float> KnownSupplyState;
+
+	// Last known population (only if Surveyed+)
+	UPROPERTY()
+	int32 LastKnownPopulation = 0;
+
+	// Has this player completed a full survey?
+	UPROPERTY()
+	bool bSurveyCompleted = false;
+
+	// Faction control at last observation (may be stale)
+	UPROPERTY()
+	FName LastKnownFaction;
+
+	FSystemKnownState()
+		: VisibilityLevel(ESystemVisibility::Hidden)
+		, LastKnownPopulation(0)
+		, bSurveyCompleted(false)
+	{}
+};
+
+/**
+ * Per-player fog-of-war state for the entire universe
+ * SERVER ONLY - one instance per connected player
+ * Tracks what each player knows about each system
+ */
+USTRUCT()
+struct FPlayerFogOfWarState
+{
+	GENERATED_BODY()
+
+	// Player identifier (net connection ID or similar)
+	UPROPERTY()
+	int32 PlayerId = -1;
+
+	// Map of SystemId -> KnownState
+	// Only contains entries for systems the player has discovered
+	UPROPERTY()
+	TMap<FName, FSystemKnownState> KnownSystems;
+
+	// Systems where player currently has observation capability
+	// (crew, ships, stations, or active focus)
+	UPROPERTY()
+	TSet<FName> ActiveObservationSystems;
+
+	FPlayerFogOfWarState()
+		: PlayerId(-1)
+	{}
 };
 
 /**

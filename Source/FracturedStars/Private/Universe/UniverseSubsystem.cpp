@@ -3,6 +3,7 @@
 #include "Universe/UniverseSubsystem.h"
 #include "Universe/UniverseGenerator.h"
 #include "Universe/EconomySubsystem.h"
+#include "Universe/FogOfWarSubsystem.h"
 #include "Containers/Queue.h"
 
 // Network authority helpers
@@ -824,6 +825,17 @@ void UUniverseSubsystem::OnPlayerEnterSystem(APlayerController* Player, int32 Sy
 			UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] First player in system - waking up live simulation"));
 			SetActiveEconomySystem(SystemId);
 		}
+
+		// SPRINT 3.5: Update fog-of-war visibility
+		UFogOfWarSubsystem* FogOfWar = GetGameInstance()->GetSubsystem<UFogOfWarSubsystem>();
+		if (FogOfWar)
+		{
+			// Use player controller's unique ID as PlayerId
+			int32 PlayerId = Player->GetUniqueID();
+			FName SystemName = *FString::FromInt(SystemId);
+
+			FogOfWar->OnPlayerFocusSystem(PlayerId, SystemName);
+		}
 	}
 }
 
@@ -863,6 +875,17 @@ void UUniverseSubsystem::OnPlayerLeaveSystem(APlayerController* Player, int32 Sy
 		const FStarSystemData& System = UniverseData.Systems[SystemId];
 		UE_LOG(LogTemp, Log, TEXT("[UniverseSubsystem] Player left %s (ID: %d). Players remaining: %d"), 
 			*System.SystemName, SystemId, Players->Num());
+
+		// SPRINT 3.5: Update fog-of-war visibility
+		UFogOfWarSubsystem* FogOfWar = GetGameInstance()->GetSubsystem<UFogOfWarSubsystem>();
+		if (FogOfWar)
+		{
+			// Use player controller's unique ID as PlayerId
+			int32 PlayerId = Player->GetUniqueID();
+			FName SystemName = *FString::FromInt(SystemId);
+
+			FogOfWar->OnPlayerUnfocusSystem(PlayerId, SystemName);
+		}
 
 		// If this was the last player, put system to sleep (stop live simulation)
 		if (Players->Num() == 0)

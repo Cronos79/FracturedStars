@@ -266,6 +266,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Universe|Time")
 	bool IsTimePaused() const;
 
+	// Network authority helpers
+	// Public so other subsystems can check server/client state
+	bool IsAuthority() const;
+	bool IsClient() const;
+
 private:
 	UPROPERTY()
 	FUniverseData UniverseData;
@@ -282,10 +287,6 @@ private:
 
 	// Timer handle for time advancement
 	FTimerHandle TimeAdvancementTimer;
-
-	// Network authority helpers
-	bool IsAuthority() const;
-	bool IsClient() const;
 
 	// BFS pathfinding helper
 	TArray<int32> FindPathInternal(int32 StartId, int32 EndId) const;
