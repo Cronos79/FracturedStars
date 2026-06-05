@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "UniverseTypes.h"
+#include "EconomyTypes.h"
 #include "EconomySubsystem.generated.h"
 
 /**
@@ -99,7 +100,7 @@ protected:
 	 * Simulate one economy cycle for a location
 	 * Updates stock, prices, and shortage/surplus flags
 	 */
-	void SimulateLocationEconomy(FLocationData& Location, float DeltaHours, const TMap<EGoodType, FGoodDefinition>& GoodsCatalog);
+	void SimulateLocationEconomy(int32 SystemId, FLocationData& Location, float DeltaHours, const TMap<EGoodType, FGoodDefinition>& GoodsCatalog);
 
 	/**
 	 * Update market prices based on supply/demand
@@ -110,6 +111,51 @@ protected:
 	 * Detect shortages and surpluses
 	 */
 	void UpdateShortagesAndSurpluses(FMarketState& Market);
+
+	// Sprint 5: Production & Consumption Methods
+
+	/**
+	 * Process production at a location using recipes from economic profile
+	 */
+	void TickProduction(int32 SystemId, FLocationData& Location, float DeltaHours);
+
+	/**
+	 * Process consumption at a location using consumption profile
+	 */
+	void TickConsumption(int32 SystemId, FLocationData& Location, float DeltaHours);
+
+	/**
+	 * Update production efficiency based on input availability
+	 */
+	void UpdateProductionEfficiency(int32 SystemId, FLocationData& Location);
+
+	/**
+	 * Calculate economic stress from critical good shortages
+	 */
+	float CalculateEconomicStress(int32 SystemId, const FLocationData& Location);
+
+	// Sprint 5: Inventory Helper Methods
+
+	/**
+	 * Add goods to location inventory (uses UniverseSubsystem persistence)
+	 */
+	void AddToInventory(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 Quantity);
+
+	/**
+	 * Remove goods from location inventory (uses UniverseSubsystem persistence)
+	 * Returns actual amount removed
+	 */
+	int32 RemoveFromInventory(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 Quantity);
+
+	/**
+	 * Get current stock of a good at a location
+	 */
+	int32 GetStock(int32 SystemId, int32 LocationId, EGoodType GoodType);
+
+	/**
+	 * Ensure a market entry exists for a good (creates with defaults if missing)
+	 */
+	void EnsureMarketEntry(int32 SystemId, int32 LocationId, EGoodType GoodType);
 
 private:
 	// Timer handle for active system ticks

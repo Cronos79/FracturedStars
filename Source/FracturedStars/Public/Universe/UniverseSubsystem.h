@@ -140,6 +140,26 @@ public:
 	FMarketState GetMarketState(int32 SystemId, int32 LocationId) const;
 
 	/**
+	 * Update market state at a location (for economic simulation)
+	 * @param SystemId - System containing the location
+	 * @param LocationId - Location ID
+	 * @param NewMarketState - Updated market state
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	void SetMarketState(int32 SystemId, int32 LocationId, const FMarketState& NewMarketState);
+
+	/**
+	 * Update stock and price for a specific good at a location (convenience method)
+	 * @param SystemId - System containing the location
+	 * @param LocationId - Location ID
+	 * @param GoodType - Type of good to update
+	 * @param NewStock - New stock quantity (-1 to keep unchanged)
+	 * @param NewPrice - New price (-1 to keep unchanged)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
+	void UpdateMarketGood(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 NewStock = -1, float NewPrice = -1.0f);
+
+	/**
 	 * Get price of a good at a location
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")

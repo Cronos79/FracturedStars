@@ -3,6 +3,7 @@
 #include "Player/PlayerSubsystem.h"
 #include "Universe/UniverseSubsystem.h"
 #include "Universe/FogOfWarSubsystem.h"
+#include "Ship/ShipAssemblyLibrary.h"
 
 void UPlayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -159,15 +160,42 @@ int32 UPlayerSubsystem::CreateStarterShip(int32 PlayerId, int32 SystemId, int32 
 	FShipData NewShip;
 	NewShip.ShipId = NextShipId++;
 	NewShip.ShipName = TEXT("Starter Ship"); // Generic name for Sprint 4
-	NewShip.OwnerPlayerId = PlayerId;
+	NewShip.OwnerId = PlayerId;
+	NewShip.OwnerType = FName("Player");
 	NewShip.CurrentSystemId = SystemId;
 	NewShip.CurrentLocationId = LocationId;
 	NewShip.Status = EShipStatus::Docked;
-	NewShip.CargoCapacity = 100;
+
+	// Sprint 5.5: Component-based ship assembly
+	NewShip.FrameId = FName("Human_Sparrow"); // Example faction-specific frame
+	NewShip.HullCondition = 100.0f;
+
+	// Install basic starter components (Tier I Small)
+	// Engine slot
+	UShipAssemblyLibrary::InstallComponent(NewShip, FName("Engine_1"), FName("Engine_TitanI_Small"), 100);
+	// Power plant slot
+	UShipAssemblyLibrary::InstallComponent(NewShip, FName("PowerPlant_1"), FName("PowerPlant_NovaI_Small"), 100);
+	// Shield slot
+	UShipAssemblyLibrary::InstallComponent(NewShip, FName("Shield_1"), FName("Shield_AtlasI_Small"), 100);
+	// Utility slot (mining laser for mining frame)
+	UShipAssemblyLibrary::InstallComponent(NewShip, FName("Utility_1"), FName("Utility_MiningLaser_Small"), 100);
+	// Utility slot (cargo expansion) - PLAYER CHOICE: could be fuel tank instead!
+	UShipAssemblyLibrary::InstallComponent(NewShip, FName("Utility_2"), FName("Utility_CargoExpansion_Small"), 100);
+
+	// TODO: Load frame definition from data asset or subsystem to calculate proper stats
+	// For now, set reasonable starter values that will be replaced by proper calculation
+	NewShip.CargoCapacity = 150; // Base 50 + cargo expansion bonus
 	NewShip.CurrentCargoUsed = 0;
 	NewShip.FuelCapacity = 100;
 	NewShip.CurrentFuel = 100; // Start with full fuel
 	NewShip.CrewCapacity = 3;
+	NewShip.PowerGeneration = 50; // Small power plant
+	NewShip.PowerConsumption = 30; // Engine + shields + systems
+	NewShip.SpeedModifier = 1.0f; // Small engine
+	NewShip.ShieldCapacity = 100; // Small shield
+	NewShip.CurrentShields = 100;
+	NewShip.MiningEfficiency = 0.5f; // Small mining laser
+	NewShip.bIsOperational = true; // Has engine + power + valid budget
 
 	Ships.Add(NewShip.ShipId, NewShip);
 
@@ -227,7 +255,7 @@ TArray<FShipData> UPlayerSubsystem::GetPlayerShips(int32 PlayerId) const
 bool UPlayerSubsystem::PlayerOwnsShip(int32 PlayerId, int32 ShipId) const
 {
 	const FShipData* Ship = Ships.Find(ShipId);
-	return Ship && Ship->OwnerPlayerId == PlayerId;
+	return Ship && Ship->OwnerId == PlayerId && Ship->OwnerType == FName("Player");
 }
 
 // ============================================================================
@@ -255,7 +283,7 @@ int32 UPlayerSubsystem::CreateCrewMember(int32 PlayerId, int32 ShipId)
 	if (ShipId != -1)
 	{
 		const FShipData* Ship = Ships.Find(ShipId);
-		if (!Ship || Ship->OwnerPlayerId != PlayerId)
+		if (!Ship || Ship->OwnerId != PlayerId || Ship->OwnerType != FName("Player"))
 		{
 			UE_LOG(LogTemp, Error, TEXT("[PlayerSubsystem] Cannot create crew - ship %d invalid or not owned by player %d"), 
 				ShipId, PlayerId);
@@ -375,7 +403,7 @@ bool UPlayerSubsystem::AssignCrewToShip(int32 CrewId, int32 ShipId)
 	{
 		// Validate ship exists and is owned by same player
 		FShipData* Ship = Ships.Find(ShipId);
-		if (!Ship || Ship->OwnerPlayerId != CrewMember->OwnerPlayerId)
+		if (!Ship || Ship->OwnerId != CrewMember->OwnerPlayerId || Ship->OwnerType != FName("Player"))
 		{
 			UE_LOG(LogTemp, Error, TEXT("[PlayerSubsystem] Cannot assign crew %d - ship %d invalid or different owner"), 
 				CrewId, ShipId);
@@ -498,7 +526,7 @@ bool UPlayerSubsystem::BoardShip(int32 PlayerId, int32 ShipId)
 	}
 
 	// Validate ownership
-	if (Ship->OwnerPlayerId != PlayerId)
+	if (Ship->OwnerId != PlayerId || Ship->OwnerType != FName("Player"))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PlayerSubsystem] Cannot board - player %d does not own ship %d"), 
 			PlayerId, ShipId);
@@ -589,7 +617,7 @@ void UPlayerSubsystem::PrintShipInfo(int32 ShipId) const
 
 	UE_LOG(LogTemp, Log, TEXT("========== SHIP INFO: %d =========="), ShipId);
 	UE_LOG(LogTemp, Log, TEXT("Name: %s"), *Ship->ShipName);
-	UE_LOG(LogTemp, Log, TEXT("Owner: Player %d"), Ship->OwnerPlayerId);
+	UE_LOG(LogTemp, Log, TEXT("Owner: %s %d"), *Ship->OwnerType.ToString(), Ship->OwnerId);
 	UE_LOG(LogTemp, Log, TEXT("Location: System %d, Location %d"), Ship->CurrentSystemId, Ship->CurrentLocationId);
 	UE_LOG(LogTemp, Log, TEXT("Status: %s"), 
 		Ship->Status == EShipStatus::Docked ? TEXT("Docked") :

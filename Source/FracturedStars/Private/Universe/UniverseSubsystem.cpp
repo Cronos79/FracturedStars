@@ -552,6 +552,101 @@ FMarketState UUniverseSubsystem::GetMarketState(int32 SystemId, int32 LocationId
 	return EconomySubsystem->GetMarketState(UniverseData, SystemId, LocationId);
 }
 
+void UUniverseSubsystem::SetMarketState(int32 SystemId, int32 LocationId, const FMarketState& NewMarketState)
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot set market state: universe not generated"));
+		return;
+	}
+
+	if (!IsAuthority())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot set market state: not authority"));
+		return;
+	}
+
+	if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Invalid system ID: %d"), SystemId);
+		return;
+	}
+
+	FStarSystemData& System = UniverseData.Systems[SystemId];
+	FLocationData* Location = System.Locations.FindByPredicate([LocationId](const FLocationData& Loc) {
+		return Loc.LocationId == LocationId;
+	});
+
+	if (!Location)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Location not found: SystemId=%d, LocationId=%d"), SystemId, LocationId);
+		return;
+	}
+
+	// Update the market state
+	Location->Market = NewMarketState;
+}
+
+void UUniverseSubsystem::UpdateMarketGood(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 NewStock, float NewPrice)
+{
+	if (!bIsGenerated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot update market good: universe not generated"));
+		return;
+	}
+
+	if (!IsAuthority())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Cannot update market good: not authority"));
+		return;
+	}
+
+	if (SystemId < 0 || SystemId >= UniverseData.Systems.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Invalid system ID: %d"), SystemId);
+		return;
+	}
+
+	FStarSystemData& System = UniverseData.Systems[SystemId];
+	FLocationData* Location = System.Locations.FindByPredicate([LocationId](const FLocationData& Loc) {
+		return Loc.LocationId == LocationId;
+	});
+
+	if (!Location)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UniverseSubsystem] Location not found: SystemId=%d, LocationId=%d"), SystemId, LocationId);
+		return;
+	}
+
+	// Find or create the market good entry
+	FMarketGoodEntry* Entry = Location->Market.Goods.FindByPredicate([GoodType](const FMarketGoodEntry& Good) {
+		return Good.GoodType == GoodType;
+	});
+
+	if (Entry)
+	{
+		// Update existing entry
+		if (NewStock >= 0)
+		{
+			Entry->Stock = NewStock;
+		}
+		if (NewPrice >= 0.0f)
+		{
+			Entry->CurrentPrice = NewPrice;
+		}
+	}
+	else if (NewStock >= 0 || NewPrice >= 0.0f)
+	{
+		// Create new entry
+		FMarketGoodEntry NewEntry;
+		NewEntry.GoodType = GoodType;
+		NewEntry.Stock = NewStock >= 0 ? NewStock : 0;
+		NewEntry.CurrentPrice = NewPrice >= 0.0f ? NewPrice : 10.0f; // Default price
+		NewEntry.TargetStock = 100; // Default target
+		Location->Market.Goods.Add(NewEntry);
+	}
+}
+
 float UUniverseSubsystem::GetGoodPrice(int32 SystemId, int32 LocationId, EGoodType GoodType) const
 {
 	if (!bIsGenerated)

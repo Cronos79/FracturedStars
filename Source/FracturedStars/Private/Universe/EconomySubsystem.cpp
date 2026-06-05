@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Universe/EconomySubsystem.h"
+#include "Universe/UniverseSubsystem.h"
+#include "Economy/EconomicProfileLibrary.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
@@ -461,7 +463,7 @@ void UEconomySubsystem::TickActiveSystemEconomy(FUniverseData& UniverseData, flo
 	{
 		if (Location.Market.Goods.Num() > 0)
 		{
-			SimulateLocationEconomy(Location, DeltaHours, GoodsCatalog);
+			SimulateLocationEconomy(UniverseData.ActiveSystemId, Location, DeltaHours, GoodsCatalog);
 			Location.Market.LastUpdateTime = UniverseData.CurrentTime.TotalElapsedSeconds;
 		}
 	}
@@ -506,7 +508,7 @@ void UEconomySubsystem::CatchUpSystemEconomy(FUniverseData& UniverseData, int32 
 		{
 			if (Location.Market.Goods.Num() > 0)
 			{
-				SimulateLocationEconomy(Location, DeltaHours, GoodsCatalog);
+				SimulateLocationEconomy(SystemId, Location, DeltaHours, GoodsCatalog);
 			}
 		}
 	}
@@ -521,35 +523,28 @@ void UEconomySubsystem::CatchUpSystemEconomy(FUniverseData& UniverseData, int32 
 		*System.SystemName, TotalHours, NumChunks);
 }
 
-void UEconomySubsystem::SimulateLocationEconomy(FLocationData& Location, float DeltaHours, const TMap<EGoodType, FGoodDefinition>& Catalog)
+void UEconomySubsystem::SimulateLocationEconomy(int32 SystemId, FLocationData& Location, float DeltaHours, const TMap<EGoodType, FGoodDefinition>& Catalog)
 {
-	// Step 1: Apply production and consumption
-	for (FMarketGoodEntry& Good : Location.Market.Goods)
-	{
-		// Production adds to stock
-		if (Good.ProductionRate > 0)
-		{
-			float Production = Good.ProductionRate * DeltaHours;
-			Good.Stock += FMath::RoundToInt(Production);
-		}
+	// Sprint 5: Use economic profiles for production/consumption
 
-		// Consumption removes from stock (but never negative)
-		if (Good.ConsumptionRate > 0)
-		{
-			float Consumption = Good.ConsumptionRate * DeltaHours;
-			int32 ConsumedAmount = FMath::Min(Good.Stock, FMath::RoundToInt(Consumption));
-			Good.Stock -= ConsumedAmount;
-		}
+	// Step 1: Update production efficiency based on input availability
+	UpdateProductionEfficiency(SystemId, Location);
 
-		// Clamp stock to reasonable bounds
-		Good.Stock = FMath::Clamp(Good.Stock, 0, Good.TargetStock * 10);
-	}
+	// Step 2: Process production using recipes from economic profile
+	TickProduction(SystemId, Location, DeltaHours);
 
-	// Step 2: Update shortages and surpluses
+	// Step 3: Process consumption using consumption profile
+	TickConsumption(SystemId, Location, DeltaHours);
+
+	// Step 4: Update shortages and surpluses
 	UpdateShortagesAndSurpluses(Location.Market);
 
-	// Step 3: Update prices
+	// Step 5: Update prices based on supply/demand
 	UpdateMarketPrices(Location.Market, Catalog);
+
+	// Step 6: Calculate economic stress (for future use/display)
+	float EconomicStress = CalculateEconomicStress(SystemId, Location);
+	// TODO: Store stress value somewhere (maybe in FLocationData or FMarketState)
 }
 
 void UEconomySubsystem::UpdateShortagesAndSurpluses(FMarketState& Market)
@@ -764,4 +759,236 @@ void UEconomySubsystem::PrintEconomyStats(const FUniverseData& UniverseData) con
 			}
 		}
 	}
+}
+
+// ============================================================================
+// SPRINT 5: PRODUCTION & CONSUMPTION
+// ============================================================================
+
+void UEconomySubsystem::TickProduction(int32 SystemId, FLocationData& Location, float DeltaHours)
+{
+UUniverseSubsystem* Universe = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+if (!Universe)
+{
+return;
+}
+
+// Get economic profile for this location
+FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
+Location.LocationType, 
+Location.Population
+);
+
+// Process each production recipe
+for (FProductionRecipe& Recipe : Profile.ProductionRecipes)
+{
+// Check if we have sufficient inputs for production batch
+bool bCanProduce = true;
+for (const FProductionInput& Input : Recipe.Inputs)
+{
+int32 Available = GetStock(SystemId, Location.LocationId, Input.GoodType);
+if (Available < Input.UnitsRequired)
+{
+bCanProduce = false;
+break;
+}
+}
+
+if (bCanProduce)
+{
+// Consume inputs
+for (const FProductionInput& Input : Recipe.Inputs)
+{
+RemoveFromInventory(SystemId, Location.LocationId, Input.GoodType, Input.UnitsRequired);
+}
+
+// Produce output (scaled by efficiency and delta hours)
+int32 ProducedAmount = FMath::FloorToInt(Recipe.OutputQuantity * Recipe.CurrentEfficiency * DeltaHours);
+if (ProducedAmount > 0)
+{
+AddToInventory(SystemId, Location.LocationId, Recipe.OutputGood, ProducedAmount);
+}
+}
+}
+}
+
+void UEconomySubsystem::TickConsumption(int32 SystemId, FLocationData& Location, float DeltaHours)
+{
+// Get economic profile
+FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
+Location.LocationType, 
+Location.Population
+);
+
+// Process each consumption entry
+for (const FConsumptionEntry& Entry : Profile.ConsumptionProfile)
+{
+// Calculate total consumption (base + population scaling) scaled by time
+int32 TotalConsumption = FMath::FloorToInt((Entry.BaseConsumption + Location.Population * Entry.PopulationScale) * DeltaHours);
+
+// Try to consume from inventory
+int32 Consumed = RemoveFromInventory(SystemId, Location.LocationId, Entry.GoodType, TotalConsumption);
+
+// If critical good and couldnt fulfill demand, contributes to economic stress
+// Stress calculation handled separately in CalculateEconomicStress
+}
+}
+
+void UEconomySubsystem::UpdateProductionEfficiency(int32 SystemId, FLocationData& Location)
+{
+// Get economic profile
+FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
+Location.LocationType, 
+Location.Population
+);
+
+// Calculate efficiency for each recipe based on input availability
+for (FProductionRecipe& Recipe : Profile.ProductionRecipes)
+{
+if (Recipe.Inputs.Num() == 0)
+{
+Recipe.CurrentEfficiency = 1.0f; // No inputs required = full efficiency
+continue;
+}
+
+float MinInputAvailability = 1.0f;
+
+for (const FProductionInput& Input : Recipe.Inputs)
+{
+int32 Available = GetStock(SystemId, Location.LocationId, Input.GoodType);
+int32 Required = Input.UnitsRequired;
+
+if (Required > 0)
+{
+float Availability = (float)Available / (float)Required;
+MinInputAvailability = FMath::Min(MinInputAvailability, Availability);
+}
+}
+
+// Efficiency is the minimum input availability (bottleneck)
+Recipe.CurrentEfficiency = FMath::Clamp(MinInputAvailability, 0.0f, 1.0f);
+}
+}
+
+float UEconomySubsystem::CalculateEconomicStress(int32 SystemId, const FLocationData& Location)
+{
+float Stress = 0.0f;
+
+// Get economic profile
+FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
+Location.LocationType, 
+Location.Population
+);
+
+// Check critical consumption shortages
+for (const FConsumptionEntry& Entry : Profile.ConsumptionProfile)
+{
+if (Entry.bIsCritical)
+{
+int32 Stock = GetStock(SystemId, Location.LocationId, Entry.GoodType);
+int32 ConsumptionNeed = Entry.BaseConsumption + FMath::FloorToInt(Location.Population * Entry.PopulationScale);
+
+if (Stock == 0)
+{
+// Critical shortage: out of stock
+Stress += 0.3f;
+}
+else if (Stock < ConsumptionNeed * 2)
+{
+// Running low on critical good
+Stress += 0.1f;
+}
+}
+}
+
+return FMath::Clamp(Stress, 0.0f, 1.0f);
+}
+
+// ============================================================================
+// SPRINT 5: INVENTORY HELPERS
+// ============================================================================
+
+void UEconomySubsystem::AddToInventory(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 Quantity)
+{
+UUniverseSubsystem* Universe = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+if (!Universe)
+{
+return;
+}
+
+FMarketState Market = Universe->GetMarketState(SystemId, LocationId);
+
+FMarketGoodEntry* Entry = Market.Goods.FindByPredicate([GoodType](const FMarketGoodEntry& Good) {
+return Good.GoodType == GoodType;
+});
+
+int32 NewStock = (Entry ? Entry->Stock : 0) + Quantity;
+float CurrentPrice = Entry ? Entry->CurrentPrice : 10.0f;
+
+Universe->UpdateMarketGood(SystemId, LocationId, GoodType, NewStock, CurrentPrice);
+}
+
+int32 UEconomySubsystem::RemoveFromInventory(int32 SystemId, int32 LocationId, EGoodType GoodType, int32 Quantity)
+{
+UUniverseSubsystem* Universe = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+if (!Universe)
+{
+return 0;
+}
+
+FMarketState Market = Universe->GetMarketState(SystemId, LocationId);
+
+FMarketGoodEntry* Entry = Market.Goods.FindByPredicate([GoodType](const FMarketGoodEntry& Good) {
+return Good.GoodType == GoodType;
+});
+
+if (!Entry)
+{
+return 0; // No stock
+}
+
+int32 ActualRemoved = FMath::Min(Entry->Stock, Quantity);
+int32 NewStock = Entry->Stock - ActualRemoved;
+
+Universe->UpdateMarketGood(SystemId, LocationId, GoodType, NewStock, Entry->CurrentPrice);
+
+return ActualRemoved;
+}
+
+int32 UEconomySubsystem::GetStock(int32 SystemId, int32 LocationId, EGoodType GoodType)
+{
+UUniverseSubsystem* Universe = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+if (!Universe)
+{
+return 0;
+}
+
+FMarketState Market = Universe->GetMarketState(SystemId, LocationId);
+
+const FMarketGoodEntry* Entry = Market.Goods.FindByPredicate([GoodType](const FMarketGoodEntry& Good) {
+return Good.GoodType == GoodType;
+});
+
+return Entry ? Entry->Stock : 0;
+}
+
+void UEconomySubsystem::EnsureMarketEntry(int32 SystemId, int32 LocationId, EGoodType GoodType)
+{
+UUniverseSubsystem* Universe = GetGameInstance()->GetSubsystem<UUniverseSubsystem>();
+if (!Universe)
+{
+return;
+}
+
+FMarketState Market = Universe->GetMarketState(SystemId, LocationId);
+
+bool bExists = Market.Goods.ContainsByPredicate([GoodType](const FMarketGoodEntry& Good) {
+return Good.GoodType == GoodType;
+});
+
+if (!bExists)
+{
+// Create entry with stock=0 and default price
+Universe->UpdateMarketGood(SystemId, LocationId, GoodType, 0, 10.0f);
+}
 }

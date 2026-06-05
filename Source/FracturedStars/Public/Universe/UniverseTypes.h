@@ -59,10 +59,13 @@ enum class ELocationType : uint8
 /**
  * Resource/commodity types for economy system (Sprint 3: renamed to Goods)
  * Used in production, consumption, and market trading
+ * 
+ * Sprint 5.5: Extended with ship components and frames
  */
 UENUM(BlueprintType)
 enum class EGoodType : uint8
 {
+	// ========== Base Economy Goods ==========
 	Food			UMETA(DisplayName = "Food"),
 	Water			UMETA(DisplayName = "Water"),
 	Fuel			UMETA(DisplayName = "Fuel"),
@@ -76,7 +79,58 @@ enum class EGoodType : uint8
 	IndustrialParts	UMETA(DisplayName = "Industrial Parts"),
 	AdvancedComponents UMETA(DisplayName = "Advanced Components"),
 	ResearchMaterials UMETA(DisplayName = "Research Materials"),
-	Contraband		UMETA(DisplayName = "Contraband")		// Illegal/restricted
+	Contraband		UMETA(DisplayName = "Contraband"),		// Illegal/restricted
+
+	// ========== Ship Frames (Sprint 5.5) ==========
+	ShipFrame_StarterMining		UMETA(DisplayName = "Starter Mining Frame"),
+	ShipFrame_StarterTrade		UMETA(DisplayName = "Starter Trade Frame"),
+	ShipFrame_StarterFighter	UMETA(DisplayName = "Starter Fighter Frame"),
+	ShipFrame_MediumFreighter	UMETA(DisplayName = "Medium Freighter Frame"),
+	ShipFrame_MediumMiner		UMETA(DisplayName = "Medium Miner Frame"),
+	ShipFrame_Escort			UMETA(DisplayName = "Escort Frame"),
+	ShipFrame_HeavyFreighter	UMETA(DisplayName = "Heavy Freighter Frame"),
+	ShipFrame_Cruiser			UMETA(DisplayName = "Cruiser Frame"),
+	ShipFrame_Carrier			UMETA(DisplayName = "Carrier Frame"),
+	ShipFrame_Battleship		UMETA(DisplayName = "Battleship Frame"),
+
+	// ========== Ship Components - Engines (Sprint 5.5) ==========
+	Engine_TitanI_Small			UMETA(DisplayName = "Titan I Small Engine"),
+	Engine_TitanII_Small		UMETA(DisplayName = "Titan II Small Engine"),
+	Engine_TitanIII_Small		UMETA(DisplayName = "Titan III Small Engine"),
+	Engine_TitanI_Medium		UMETA(DisplayName = "Titan I Medium Engine"),
+	Engine_TitanII_Medium		UMETA(DisplayName = "Titan II Medium Engine"),
+	Engine_TitanIII_Medium		UMETA(DisplayName = "Titan III Medium Engine"),
+	Engine_TitanI_Large			UMETA(DisplayName = "Titan I Large Engine"),
+	Engine_TitanII_Large		UMETA(DisplayName = "Titan II Large Engine"),
+
+	// ========== Ship Components - Power Plants (Sprint 5.5) ==========
+	PowerPlant_NovaI_Small		UMETA(DisplayName = "Nova I Small Power Plant"),
+	PowerPlant_NovaII_Small		UMETA(DisplayName = "Nova II Small Power Plant"),
+	PowerPlant_NovaIII_Small	UMETA(DisplayName = "Nova III Small Power Plant"),
+	PowerPlant_NovaI_Medium		UMETA(DisplayName = "Nova I Medium Power Plant"),
+	PowerPlant_NovaII_Medium	UMETA(DisplayName = "Nova II Medium Power Plant"),
+	PowerPlant_NovaI_Large		UMETA(DisplayName = "Nova I Large Power Plant"),
+
+	// ========== Ship Components - Shields (Sprint 5.5) ==========
+	Shield_AtlasI_Small			UMETA(DisplayName = "Atlas I Small Shield"),
+	Shield_AtlasII_Small		UMETA(DisplayName = "Atlas II Small Shield"),
+	Shield_AtlasI_Medium		UMETA(DisplayName = "Atlas I Medium Shield"),
+	Shield_AtlasII_Medium		UMETA(DisplayName = "Atlas II Medium Shield"),
+
+	// ========== Ship Components - Weapons (Sprint 5.5) ==========
+	Weapon_Laser_Small			UMETA(DisplayName = "Small Laser"),
+	Weapon_Laser_Medium			UMETA(DisplayName = "Medium Laser"),
+	Weapon_Cannon_Small			UMETA(DisplayName = "Small Cannon"),
+	Weapon_MissileLauncher_Small UMETA(DisplayName = "Small Missile Launcher"),
+
+	// ========== Ship Components - Utility (Sprint 5.5) ==========
+	Utility_MiningLaser_Small	UMETA(DisplayName = "Small Mining Laser"),
+	Utility_MiningLaser_Medium	UMETA(DisplayName = "Medium Mining Laser"),
+	Utility_CargoExpansion_Small UMETA(DisplayName = "Small Cargo Expansion"),
+	Utility_CargoExpansion_Medium UMETA(DisplayName = "Medium Cargo Expansion"),
+	Utility_FuelTank_Small		UMETA(DisplayName = "Small Fuel Tank"),
+	Utility_SensorArray_Small	UMETA(DisplayName = "Small Sensor Array"),
+	Utility_SensorArray_Medium	UMETA(DisplayName = "Medium Sensor Array")
 };
 
 /**

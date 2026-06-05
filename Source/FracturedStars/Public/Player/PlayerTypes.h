@@ -3,37 +3,26 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Ship/ShipData.h"
 #include "PlayerTypes.generated.h"
 
 /**
- * Player, Ship, and Crew Data Structures
+ * Player, Crew Data Structures
  * 
  * DESIGN PHILOSOPHY:
  * - Unreal PlayerController/Pawn are separate from in-universe player data
  * - Player is persistent simulation data, not a possessed character
- * - Ships and crew are owned assets tracked by the server
- * - Location tracking connects to real generated universe
+ * - Ships are independent (see Ship/ShipData.h)
+ * - Crew are independent (can be assigned to ships/locations)
  * - Data structures support future save/load
  * 
  * Sprint 4 Foundation - provides minimal playable identity layer
+ * Sprint 5.5 - Ships moved to Ship/ShipData.h for module independence
  */
 
 // ============================================================================
 // ENUMS
 // ============================================================================
-
-/**
- * Ship operational status
- */
-UENUM(BlueprintType)
-enum class EShipStatus : uint8
-{
-	Docked       UMETA(DisplayName = "Docked"),         // Ship is docked at a location
-	InTransit    UMETA(DisplayName = "In Transit"),    // Ship is traveling between systems (future)
-	Active       UMETA(DisplayName = "Active"),        // Ship is operational
-	Disabled     UMETA(DisplayName = "Disabled"),      // Ship is damaged/disabled (future)
-	Destroyed    UMETA(DisplayName = "Destroyed")      // Ship is destroyed (future)
-};
 
 /**
  * Crew member status
@@ -117,67 +106,6 @@ struct FPlayerProfileData
 
 	// Future expansion placeholders (Sprint 4 does not implement these)
 	// Skills, traits, reputation, backstory, faction affinity, etc.
-};
-
-/**
- * Persistent ship data
- * Represents a physical ship in the universe owned by a player
- */
-USTRUCT(BlueprintType)
-struct FShipData
-{
-	GENERATED_BODY()
-
-	/** Unique ship identifier */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
-	int32 ShipId = -1;
-
-	/** Ship display name */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
-	FString ShipName;
-
-	/** Player who owns this ship */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Ownership")
-	int32 OwnerPlayerId = -1;
-
-	/** Current system the ship is in */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Location")
-	int32 CurrentSystemId = -1;
-
-	/** Current location within system (station/planet/space) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Location")
-	int32 CurrentLocationId = -1;
-
-	/** Ship operational status */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
-	EShipStatus Status = EShipStatus::Docked;
-
-	/** Maximum cargo capacity (tons or units) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Cargo")
-	int32 CargoCapacity = 100;
-
-	/** Current cargo weight/volume used */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Cargo")
-	int32 CurrentCargoUsed = 0;
-
-	/** Maximum fuel capacity */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Fuel")
-	int32 FuelCapacity = 100;
-
-	/** Current fuel remaining */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Fuel")
-	int32 CurrentFuel = 100;
-
-	/** Maximum crew capacity */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Crew")
-	int32 CrewCapacity = 3;
-
-	/** List of crew currently assigned to this ship */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Crew")
-	TArray<int32> AssignedCrewIds;
-
-	// Future expansion placeholders (Sprint 4 does not implement these)
-	// Ship class, components, weapons, shields, speed, combat stats, etc.
 };
 
 /**
