@@ -1508,11 +1508,7 @@ void ULogisticsSubsystem::TickShipTransit(FUniverseData& UniverseData, double Cu
 	{
 		FShipData& Ship = ShipPair.Value;
 
-		// Skip docked ships (not in transit)
-		if (Ship.Status == EShipStatus::Docked)
-			continue;
-
-		// Find assigned route for this ship
+		// Find assigned route for this ship (if any)
 		FTradeRoute* Route = nullptr;
 		for (FTradeRoute& R : TradeRoutes)
 		{
@@ -1523,9 +1519,31 @@ void ULogisticsSubsystem::TickShipTransit(FUniverseData& UniverseData, double Cu
 			}
 		}
 
+		// Handle ships with active routes that are still docked (need to load cargo)
+		if (Ship.Status == EShipStatus::Docked && Route != nullptr)
+		{
+			// Ship has a route but hasn't loaded cargo yet - initiate loading
+			if (LoadCargo(UniverseData, Ship.ShipId, Route->RouteId))
+			{
+				UE_LOG(LogTemp, Verbose, TEXT("Ship %s started transit after loading cargo"), *Ship.ShipName);
+				// Ship status is now InTransit (set by LoadCargo)
+			}
+			else
+			{
+				// Loading failed - cancel route
+				UE_LOG(LogTemp, Warning, TEXT("Ship %s failed to load cargo - canceling route"), *Ship.ShipName);
+				Route->Status = ETradeRouteStatus::Failed;
+			}
+			continue;
+		}
+
+		// Skip docked ships without routes
+		if (Ship.Status == EShipStatus::Docked)
+			continue;
+
 		if (!Route)
 		{
-			// No active route - return to docked status
+			// No active route but ship is not docked - return to docked status
 			Ship.Status = EShipStatus::Docked;
 			continue;
 		}
