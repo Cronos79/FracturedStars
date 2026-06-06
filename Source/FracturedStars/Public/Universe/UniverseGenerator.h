@@ -34,6 +34,7 @@ private:
 	static void CalculateLawfulness(FUniverseData& Universe);
 	static void EnsureTraversability(FUniverseData& Universe, FRandomStream& RandStream);
 	static void GenerateSystemContent(FUniverseData& Universe, FRandomStream& RandStream);
+	static void InitializeFactions(FUniverseData& Universe, FRandomStream& RandStream); // Sprint 7
 	static void ValidateGeneration(const FUniverseData& Universe);
 
 	// Content generation helpers

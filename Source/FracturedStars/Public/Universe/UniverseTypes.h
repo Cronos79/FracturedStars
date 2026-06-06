@@ -194,6 +194,193 @@ struct FGoodDefinition
 // Sprint 2 compatibility: Keep EResourceType as alias for now
 typedef EGoodType EResourceType;
 
+// ============================================================================
+// SPRINT 7: FACTION SYSTEM
+// ============================================================================
+
+/**
+ * Faction type classification
+ * Determines faction behavior and special rules
+ */
+UENUM(BlueprintType)
+enum class EFactionType : uint8
+{
+    Human			UMETA(DisplayName = "Human"),				// Earth Government, Mars
+    Alien			UMETA(DisplayName = "Alien"),				// Non-human civilizations
+    Independent		UMETA(DisplayName = "Independent"),			// No formal government
+    Dissonance		UMETA(DisplayName = "The Dissonance"),		// Hidden manipulator faction
+    Pirate			UMETA(DisplayName = "Pirate"),				// Criminal organizations
+    Corporate		UMETA(DisplayName = "Corporate")			// Mega-corporations
+};
+
+/**
+ * Diplomatic relation classification
+ * Placeholder for future diplomacy system (Sprint 7: data-only)
+ */
+UENUM(BlueprintType)
+enum class EDiplomaticRelation : uint8
+{
+    Allied			UMETA(DisplayName = "Allied"),				// Military alliance, trade agreements
+    Friendly		UMETA(DisplayName = "Friendly"),			// Positive relations, open trade
+    Neutral			UMETA(DisplayName = "Neutral"),				// No special relations
+    Wary			UMETA(DisplayName = "Wary"),				// Cautious, limited trade
+    Hostile			UMETA(DisplayName = "Hostile"),				// Trade embargoes, border tensions
+    AtWar			UMETA(DisplayName = "At War")				// Active military conflict
+};
+
+/**
+ * Strategic priority entry
+ * Tracks faction's need/priority for specific goods
+ */
+USTRUCT(BlueprintType)
+struct FStrategicPriority
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    EGoodType GoodType = EGoodType::Food;
+
+    // Priority weight (0.0 = no concern, 1.0 = critical shortage)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float Priority = 0.0f;
+
+    // Current shortage severity across faction territory
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float ShortageSeverity = 0.0f;
+
+    FStrategicPriority()
+        : GoodType(EGoodType::Food)
+        , Priority(0.0f)
+        , ShortageSeverity(0.0f)
+    {}
+
+    FStrategicPriority(EGoodType InGoodType, float InPriority, float InSeverity = 0.0f)
+        : GoodType(InGoodType)
+        , Priority(InPriority)
+        , ShortageSeverity(InSeverity)
+    {}
+};
+
+/**
+ * Dependency goods list wrapper
+ * Wraps TArray for use in TMap (UHT requirement)
+ */
+USTRUCT(BlueprintType)
+struct FFactionDependencyGoods
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<EGoodType> Goods;
+
+    FFactionDependencyGoods() {}
+};
+
+/**
+ * Faction data structure
+ * Represents a faction as an observer and consumer of universe systems
+ * Sprint 7: Foundation only - no gameplay implementation yet
+ */
+USTRUCT(BlueprintType)
+struct FFactionData
+{
+    GENERATED_BODY()
+
+    // ========== Identity ==========
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    int32 FactionId = -1;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    FString FactionName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    EFactionType FactionType = EFactionType::Alien;
+
+    // ========== Territory ==========
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    int32 HomeSystemId = -1;
+
+    // Core worlds (high importance, faction capital regions)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<int32> CoreSystemIds;
+
+    // All controlled systems (core + frontier)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<int32> ControlledSystemIds;
+
+    // ========== Demographics ==========
+    // Total population across all controlled territories
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    int64 TotalPopulation = 0;
+
+    // ========== Economic Metrics ==========
+    // Aggregate economic output (calculated from markets)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float EconomicStrength = 0.0f;
+
+    // Industrial capacity (production capability)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float IndustrialStrength = 0.0f;
+
+    // Military power placeholder (future implementation)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float MilitaryStrength = 0.0f;
+
+    // Available credits/budget
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float Credits = 1000000.0f;
+
+    // ========== Economic Stress ==========
+    // Aggregate stress level (0.0 = stable, 1.0 = critical)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    float CurrentEconomicStress = 0.0f;
+
+    // ========== Trade Tracking ==========
+    // Current imports by good type (units per cycle)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TMap<EGoodType, int32> CurrentImports;
+
+    // Current exports by good type (units per cycle)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TMap<EGoodType, int32> CurrentExports;
+
+    // ========== Strategic Analysis ==========
+    // Priority goods and their importance (calculated from shortages)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<FStrategicPriority> StrategicPriorities;
+
+    // Factions we depend on for critical goods (FactionId -> Goods list)
+    // Future diplomacy will use this to evaluate trade dependencies
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TMap<int32, FFactionDependencyGoods> CriticalDependencies;
+
+    // ========== Diplomacy Placeholder (Sprint 7: data-only) ==========
+    // Relations with other factions (FactionId -> Relation)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TMap<int32, EDiplomaticRelation> DiplomaticRelations;
+
+    // ========== Future Integration Hooks ==========
+    // Notable economic events (future news generation)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<FString> NewsEvents;
+
+    // Mission opportunities (future mission generation)
+    UPROPERTY(BlueprintReadOnly, Category = "Faction")
+    TArray<FString> MissionOpportunities;
+
+    FFactionData()
+        : FactionId(-1)
+        , FactionType(EFactionType::Alien)
+        , HomeSystemId(-1)
+        , TotalPopulation(0)
+        , EconomicStrength(0.0f)
+        , IndustrialStrength(0.0f)
+        , MilitaryStrength(0.0f)
+        , Credits(1000000.0f)
+        , CurrentEconomicStress(0.0f)
+    {}
+};
+
 /**
  * Shortage location reference
  * Globally unique reference to a location experiencing a shortage
@@ -784,6 +971,10 @@ struct FUniverseData
 	// Faction home system IDs
 	UPROPERTY(BlueprintReadOnly, Category = "Universe")
 	TArray<int32> FactionHomeSystems;
+
+	// Sprint 7: Faction simulation data
+	UPROPERTY(BlueprintReadOnly, Category = "Factions")
+	TArray<FFactionData> Factions;
 
 	// Generation timestamp (for debugging)
 	UPROPERTY(BlueprintReadOnly, Category = "Universe")

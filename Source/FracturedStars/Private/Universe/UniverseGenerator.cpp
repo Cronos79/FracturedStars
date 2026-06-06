@@ -22,6 +22,7 @@ FUniverseData UUniverseGenerator::GenerateUniverse(const FUniverseConfig& Config
 	AssignRegions(Universe);
 	CalculateLawfulness(Universe);
 	GenerateSystemContent(Universe, RandStream); // Generate content after regions are assigned
+	InitializeFactions(Universe, RandStream);    // Sprint 7: Create faction data structures
 	ValidateGeneration(Universe);
 
 	UE_LOG(LogTemp, Log, TEXT("=== Universe Generation Complete ==="));
@@ -102,66 +103,88 @@ void UUniverseGenerator::PlaceFactionCores(FUniverseData& Universe, FRandomStrea
 	Universe.FactionHomeSystems.Empty();
 	TArray<int32> SelectedCores;
 
-	// Select first faction core randomly
-	int32 FirstCore = RandStream.RandRange(0, Universe.Systems.Num() - 1);
-	SelectedCores.Add(FirstCore);
-	Universe.FactionHomeSystems.Add(FirstCore);
-	UE_LOG(LogTemp, Log, TEXT("  Faction 0: System %d (%s) [Starting faction]"), 
-		FirstCore, *Universe.Systems[FirstCore].SystemName);
-
-	// Select remaining cores with ENFORCED minimum separation
-	for (int32 FactionIdx = 1; FactionIdx < Universe.Config.FactionCount; ++FactionIdx)
+	// ========== SPRINT 7: SOL SYSTEM SPECIAL CASE ==========
+	// Faction 0 (Earth Government) and Faction 1 (Mars Independence Movement)
+	// both exist in Sol system - lore exception to faction separation rule
+	if (Universe.Config.FactionCount >= 2)
 	{
-		int32 BestCandidate = -1;
-		int32 BestMinDistance = 0;
+		// Select Sol system for Earth and Mars (first faction home)
+		int32 SolSystemId = RandStream.RandRange(0, Universe.Systems.Num() - 1);
+		Universe.Systems[SolSystemId].SystemName = TEXT("Sol");
+		Universe.Systems[SolSystemId].ControllingFactionId = 0; // Sprint 7: Earth officially controls Sol
+		SelectedCores.Add(SolSystemId);
 
-		// Try many more candidates to ensure good separation
-		for (int32 Attempt = 0; Attempt < 200; ++Attempt)
+		// Both Earth and Mars use Sol as home system
+		Universe.FactionHomeSystems.Add(SolSystemId); // Faction 0: Earth Government
+		Universe.FactionHomeSystems.Add(SolSystemId); // Faction 1: Mars Independence Movement
+
+		UE_LOG(LogTemp, Log, TEXT("  Sol System: System %d [Earth Government + Mars Independence]"), SolSystemId);
+		UE_LOG(LogTemp, Log, TEXT("    Faction 0: Earth Government (home: Sol)"));
+		UE_LOG(LogTemp, Log, TEXT("    Faction 1: Mars Independence Movement (home: Sol)"));
+
+		// Place remaining factions with normal separation
+		for (int32 FactionIdx = 2; FactionIdx < Universe.Config.FactionCount; ++FactionIdx)
 		{
-			int32 Candidate = RandStream.RandRange(0, Universe.Systems.Num() - 1);
+			int32 BestCandidate = -1;
+			int32 BestMinDistance = 0;
 
-			// Skip if already selected
-			if (SelectedCores.Contains(Candidate))
-				continue;
-
-			// Calculate minimum distance to existing cores
-			int32 MinDistance = MAX_int32;
-			for (int32 ExistingCore : SelectedCores)
+			// Try many more candidates to ensure good separation
+			for (int32 Attempt = 0; Attempt < 200; ++Attempt)
 			{
-				int32 Distance = CalculateJumpDistance(Candidate, ExistingCore, Universe.Systems);
-				MinDistance = FMath::Min(MinDistance, Distance);
+				int32 Candidate = RandStream.RandRange(0, Universe.Systems.Num() - 1);
+
+				// Skip if already selected
+				if (SelectedCores.Contains(Candidate))
+					continue;
+
+				// Calculate minimum distance to existing cores
+				int32 MinDistance = MAX_int32;
+				for (int32 ExistingCore : SelectedCores)
+				{
+					int32 Distance = CalculateJumpDistance(Candidate, ExistingCore, Universe.Systems);
+					MinDistance = FMath::Min(MinDistance, Distance);
+				}
+
+				// ENFORCE minimum separation requirement
+				if (MinDistance < Universe.Config.MinFactionSeparation)
+					continue; // Skip candidates that are too close
+
+				// Keep candidate with best separation
+				if (MinDistance > BestMinDistance)
+				{
+					BestMinDistance = MinDistance;
+					BestCandidate = Candidate;
+				}
 			}
 
-			// ENFORCE minimum separation requirement
-			if (MinDistance < Universe.Config.MinFactionSeparation)
-				continue; // Skip candidates that are too close
-
-			// Keep candidate with best separation
-			if (MinDistance > BestMinDistance)
+			// If we couldn't find a candidate meeting requirements, take the best we found
+			if (BestCandidate == -1 && BestMinDistance > 0)
 			{
-				BestMinDistance = MinDistance;
-				BestCandidate = Candidate;
+				UE_LOG(LogTemp, Warning, TEXT("  Faction %d: Could not meet separation requirement of %d jumps (best: %d)"),
+					FactionIdx, Universe.Config.MinFactionSeparation, BestMinDistance);
+			}
+
+			if (BestCandidate != -1)
+			{
+				SelectedCores.Add(BestCandidate);
+				Universe.FactionHomeSystems.Add(BestCandidate);
+				UE_LOG(LogTemp, Log, TEXT("  Faction %d: System %d (%s) - Min separation: %d jumps"),
+					FactionIdx, BestCandidate, *Universe.Systems[BestCandidate].SystemName, BestMinDistance);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("  Faction %d: FAILED to place! Increase system count or reduce factions."), FactionIdx);
 			}
 		}
-
-		// If we couldn't find a candidate meeting requirements, take the best we found
-		if (BestCandidate == -1 && BestMinDistance > 0)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("  Faction %d: Could not meet separation requirement of %d jumps (best: %d)"),
-				FactionIdx, Universe.Config.MinFactionSeparation, BestMinDistance);
-		}
-
-		if (BestCandidate != -1)
-		{
-			SelectedCores.Add(BestCandidate);
-			Universe.FactionHomeSystems.Add(BestCandidate);
-			UE_LOG(LogTemp, Log, TEXT("  Faction %d: System %d (%s) - Min separation: %d jumps"),
-				FactionIdx, BestCandidate, *Universe.Systems[BestCandidate].SystemName, BestMinDistance);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("  Faction %d: FAILED to place! Increase system count or reduce factions."), FactionIdx);
-		}
+	}
+	else
+	{
+		// Fallback: If only 1 faction, place it randomly (shouldn't happen in normal gameplay)
+		int32 FirstCore = RandStream.RandRange(0, Universe.Systems.Num() - 1);
+		SelectedCores.Add(FirstCore);
+		Universe.FactionHomeSystems.Add(FirstCore);
+		UE_LOG(LogTemp, Log, TEXT("  Faction 0: System %d (%s) [Only faction]"), 
+			FirstCore, *Universe.Systems[FirstCore].SystemName);
 	}
 }
 
@@ -221,9 +244,12 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 		}
 		else if (MinDistance == 0)
 		{
-			// Home system
+			// Home system - controller already set in PlaceFactionCores for special cases like Sol
 			System.RegionType = ERegionType::FactionCore;
-			System.ControllingFactionId = NearestFaction;
+			if (System.ControllingFactionId == -1) // Only set if not already assigned
+			{
+				System.ControllingFactionId = NearestFaction;
+			}
 		}
 		else if (MinDistance <= 2)
 		{
@@ -1194,4 +1220,143 @@ FString UUniverseGenerator::GenerateLocationName(int32 SystemId, int32 LocationI
 		return FString::Printf(TEXT("Location %d-%d"), SystemId, LocationIndex);
 	}
 }
+
+// ============================================================================
+// SPRINT 7: FACTION INITIALIZATION
+// ============================================================================
+
+void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStream& RandStream)
+{
+	UE_LOG(LogTemp, Log, TEXT("Initializing %d factions..."), Universe.FactionHomeSystems.Num());
+
+	Universe.Factions.Empty();
+	Universe.Factions.Reserve(Universe.FactionHomeSystems.Num());
+
+	// Temporary faction names (will be customized in future sprints)
+	static const TArray<FString> HumanFactionNames = {
+		TEXT("Earth Government"),
+		TEXT("Mars Independence Movement")
+	};
+
+	static const TArray<FString> AlienFactionNames = {
+		TEXT("Faction Alpha"),
+		TEXT("Faction Beta"),
+		TEXT("Faction Gamma"),
+		TEXT("Faction Delta"),
+		TEXT("Faction Epsilon")
+	};
+
+	for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
+	{
+		FFactionData Faction;
+		Faction.FactionId = FactionIdx;
+		Faction.HomeSystemId = Universe.FactionHomeSystems[FactionIdx];
+
+		// Faction 0 and 1 are human factions (Earth and Mars in Sol)
+		if (FactionIdx == 0)
+		{
+			Faction.FactionName = HumanFactionNames[0]; // Earth Government
+			Faction.FactionType = EFactionType::Human;
+			Faction.Credits = 5000000.0f; // Largest human power
+		}
+		else if (FactionIdx == 1)
+		{
+			Faction.FactionName = HumanFactionNames[1]; // Mars Independence
+			Faction.FactionType = EFactionType::Human;
+			Faction.Credits = 2000000.0f; // Smaller, rebel faction
+		}
+		else
+		{
+			// Alien factions
+			int32 NameIdx = (FactionIdx - 2) % AlienFactionNames.Num();
+			Faction.FactionName = AlienFactionNames[NameIdx];
+			Faction.FactionType = EFactionType::Alien;
+			Faction.Credits = 3000000.0f + RandStream.FRandRange(-500000.0f, 500000.0f);
+		}
+
+		// Collect controlled systems (all systems where ControllingFactionId matches)
+		TArray<int32> ControlledSystemIds;
+		TArray<int32> CoreSystemIds;
+
+		for (const FStarSystemData& System : Universe.Systems)
+		{
+			if (System.ControllingFactionId == FactionIdx)
+			{
+				ControlledSystemIds.Add(System.SystemId);
+
+				// Core systems are FactionCore region type
+				if (System.RegionType == ERegionType::FactionCore)
+				{
+					CoreSystemIds.Add(System.SystemId);
+				}
+			}
+		}
+
+		// Sprint 7: Sol special case - BOTH Earth and Mars control Sol
+		// Earth (Faction 0) is the official controller, Mars (Faction 1) shares presence
+		if (FactionIdx == 0) // Earth Government
+		{
+			int32 SolSystemId = Universe.FactionHomeSystems[0]; // Sol
+			if (!ControlledSystemIds.Contains(SolSystemId))
+			{
+				ControlledSystemIds.Add(SolSystemId);
+				CoreSystemIds.Add(SolSystemId);
+			}
+		}
+		else if (FactionIdx == 1) // Mars Independence Movement
+		{
+			int32 SolSystemId = Universe.FactionHomeSystems[1]; // Sol (same as Earth's home)
+			if (!ControlledSystemIds.Contains(SolSystemId))
+			{
+				ControlledSystemIds.Add(SolSystemId);
+				CoreSystemIds.Add(SolSystemId);
+			}
+		}
+
+		// Assign collected systems to faction
+		Faction.ControlledSystemIds = ControlledSystemIds;
+		Faction.CoreSystemIds = CoreSystemIds;
+
+		// Calculate total population across controlled territory
+		Faction.TotalPopulation = 0;
+		for (int32 SystemId : Faction.ControlledSystemIds)
+		{
+			const FStarSystemData& System = Universe.Systems[SystemId];
+			for (const FLocationData& Location : System.Locations)
+			{
+				if (Location.OwningFactionId == FactionIdx)
+				{
+					Faction.TotalPopulation += Location.Population;
+				}
+			}
+		}
+
+		// Initial economic strength estimate (population-based for now)
+		// Future: Calculate from actual market production/consumption
+		Faction.EconomicStrength = FMath::Sqrt((float)Faction.TotalPopulation) * 100.0f;
+		Faction.IndustrialStrength = Faction.EconomicStrength * 0.8f;
+
+		// Initialize diplomatic relations as neutral
+		for (int32 OtherFactionIdx = 0; OtherFactionIdx < Universe.FactionHomeSystems.Num(); ++OtherFactionIdx)
+		{
+			if (OtherFactionIdx != FactionIdx)
+			{
+				Faction.DiplomaticRelations.Add(OtherFactionIdx, EDiplomaticRelation::Neutral);
+			}
+		}
+
+		Universe.Factions.Add(Faction);
+
+		UE_LOG(LogTemp, Log, TEXT("  Faction %d: %s (%s) - Home: System %d, Controlled: %d systems, Population: %lld"),
+			Faction.FactionId,
+			*Faction.FactionName,
+			Faction.FactionType == EFactionType::Human ? TEXT("Human") : TEXT("Alien"),
+			Faction.HomeSystemId,
+			Faction.ControlledSystemIds.Num(),
+			Faction.TotalPopulation);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Faction initialization complete!"));
+}
+
 
