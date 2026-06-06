@@ -173,9 +173,10 @@ public:
 
 	/**
 	 * Find all locations with shortages of a specific good
+	 * Returns globally unique location references (SystemId + LocationId + Severity)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Universe|Economy")
-	TArray<int32> FindShortageLocations(EGoodType GoodType) const;
+	TArray<FShortageLocation> FindShortageLocations(EGoodType GoodType) const;
 
 	/**
 	 * Print economy statistics

@@ -679,17 +679,17 @@ bool UUniverseSubsystem::HasShortage(int32 SystemId, int32 LocationId, EGoodType
 	return EconomySubsystem->HasShortage(UniverseData, SystemId, LocationId, GoodType);
 }
 
-TArray<int32> UUniverseSubsystem::FindShortageLocations(EGoodType GoodType) const
+TArray<FShortageLocation> UUniverseSubsystem::FindShortageLocations(EGoodType GoodType) const
 {
 	if (!bIsGenerated)
 	{
-		return TArray<int32>();
+		return TArray<FShortageLocation>();
 	}
 
 	UEconomySubsystem* EconomySubsystem = GetGameInstance()->GetSubsystem<UEconomySubsystem>();
 	if (!EconomySubsystem)
 	{
-		return TArray<int32>();
+		return TArray<FShortageLocation>();
 	}
 
 	return EconomySubsystem->FindShortageLocations(UniverseData, GoodType);

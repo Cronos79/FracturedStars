@@ -378,11 +378,34 @@ void UEconomySubsystem::InitializeLocationMarket(FLocationData& Location, FRando
 			int32 BaseTarget = FMath::Max(100, Location.Population / 100);
 			Entry.TargetStock = BaseTarget * FMath::Max(1, Entry.ConsumptionRate);
 
-			// Initialize stock near target with variance
-			Entry.Stock = FMath::RandRange(
-				FMath::Max(0, Entry.TargetStock - Entry.TargetStock / 4),
-				Entry.TargetStock + Entry.TargetStock / 4
-			);
+			// Initialize stock with wider variance to create immediate trade opportunities
+			// Sprint 6: Bias toward imbalances to kickstart logistics network
+			// Use seeded RNG for determinism
+			float VarianceRoll = RNG.FRand();
+			if (VarianceRoll < 0.4f)
+			{
+				// 40% chance: Shortage (25-60% of target)
+				Entry.Stock = RNG.RandRange(
+					FMath::Max(10, Entry.TargetStock / 4),      // 25% of target
+					Entry.TargetStock * 6 / 10                  // 60% of target
+				);
+			}
+			else if (VarianceRoll < 0.7f)
+			{
+				// 30% chance: Surplus (140-200% of target)
+				Entry.Stock = RNG.RandRange(
+					Entry.TargetStock * 14 / 10,                // 140% of target
+					Entry.TargetStock * 2                       // 200% of target
+				);
+			}
+			else
+			{
+				// 30% chance: Near equilibrium (80-120% of target)
+				Entry.Stock = RNG.RandRange(
+					Entry.TargetStock * 8 / 10,                 // 80% of target
+					Entry.TargetStock * 12 / 10                 // 120% of target
+				);
+			}
 
 			Entry.bIsShortage = false;
 			Entry.bIsSurplus = false;
@@ -542,9 +565,8 @@ void UEconomySubsystem::SimulateLocationEconomy(int32 SystemId, FLocationData& L
 	// Step 5: Update prices based on supply/demand
 	UpdateMarketPrices(Location.Market, Catalog);
 
-	// Step 6: Calculate economic stress (for future use/display)
-	float EconomicStress = CalculateEconomicStress(SystemId, Location);
-	// TODO: Store stress value somewhere (maybe in FLocationData or FMarketState)
+	// Step 6: Calculate and store economic stress for news/missions/faction relations
+	Location.Market.EconomicStress = CalculateEconomicStress(SystemId, Location);
 }
 
 void UEconomySubsystem::UpdateShortagesAndSurpluses(FMarketState& Market)
@@ -668,19 +690,31 @@ bool UEconomySubsystem::HasShortage(const FUniverseData& UniverseData, int32 Sys
 	return false;
 }
 
-TArray<int32> UEconomySubsystem::FindShortageLocations(const FUniverseData& UniverseData, EGoodType GoodType) const
+TArray<FShortageLocation> UEconomySubsystem::FindShortageLocations(const FUniverseData& UniverseData, EGoodType GoodType) const
 {
-	TArray<int32> ShortageLocations;
+	TArray<FShortageLocation> ShortageLocations;
 
-	for (const FStarSystemData& System : UniverseData.Systems)
+	for (int32 SystemIdx = 0; SystemIdx < UniverseData.Systems.Num(); ++SystemIdx)
 	{
-		for (const FLocationData& Location : System.Locations)
+		const FStarSystemData& System = UniverseData.Systems[SystemIdx];
+
+		for (int32 LocIdx = 0; LocIdx < System.Locations.Num(); ++LocIdx)
 		{
+			const FLocationData& Location = System.Locations[LocIdx];
+
 			for (const FMarketGoodEntry& Good : Location.Market.Goods)
 			{
 				if (Good.GoodType == GoodType && Good.bIsShortage)
 				{
-					ShortageLocations.Add(Location.LocationId);
+					// Calculate shortage severity (0.0 = minor, 1.0 = critical)
+					float Severity = 0.0f;
+					if (Good.TargetStock > 0)
+					{
+						Severity = 1.0f - (static_cast<float>(Good.Stock) / static_cast<float>(Good.TargetStock));
+						Severity = FMath::Clamp(Severity, 0.0f, 1.0f);
+					}
+
+					ShortageLocations.Add(FShortageLocation(SystemIdx, LocIdx, GoodType, Severity));
 					break;
 				}
 			}
@@ -836,38 +870,55 @@ int32 Consumed = RemoveFromInventory(SystemId, Location.LocationId, Entry.GoodTy
 
 void UEconomySubsystem::UpdateProductionEfficiency(int32 SystemId, FLocationData& Location)
 {
-// Get economic profile
-FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
-Location.LocationType, 
-Location.Population
-);
+	// Get economic profile
+	FLocationEconomicProfile Profile = UEconomicProfileLibrary::CreateProfileForLocationType(
+		Location.LocationType, 
+		Location.Population
+	);
 
-// Calculate efficiency for each recipe based on input availability
-for (FProductionRecipe& Recipe : Profile.ProductionRecipes)
-{
-if (Recipe.Inputs.Num() == 0)
-{
-Recipe.CurrentEfficiency = 1.0f; // No inputs required = full efficiency
-continue;
-}
+	// Calculate efficiency for each recipe based on input availability
+	float OverallEfficiency = 1.0f;
+	int32 RecipeCount = 0;
 
-float MinInputAvailability = 1.0f;
+	for (FProductionRecipe& Recipe : Profile.ProductionRecipes)
+	{
+		if (Recipe.Inputs.Num() == 0)
+		{
+			Recipe.CurrentEfficiency = 1.0f; // No inputs required = full efficiency
+			OverallEfficiency += 1.0f;
+			RecipeCount++;
+			continue;
+		}
 
-for (const FProductionInput& Input : Recipe.Inputs)
-{
-int32 Available = GetStock(SystemId, Location.LocationId, Input.GoodType);
-int32 Required = Input.UnitsRequired;
+		float MinInputAvailability = 1.0f;
 
-if (Required > 0)
-{
-float Availability = (float)Available / (float)Required;
-MinInputAvailability = FMath::Min(MinInputAvailability, Availability);
-}
-}
+		for (const FProductionInput& Input : Recipe.Inputs)
+		{
+			int32 Available = GetStock(SystemId, Location.LocationId, Input.GoodType);
+			int32 Required = Input.UnitsRequired;
 
-// Efficiency is the minimum input availability (bottleneck)
-Recipe.CurrentEfficiency = FMath::Clamp(MinInputAvailability, 0.0f, 1.0f);
-}
+			if (Required > 0)
+			{
+				float Availability = (float)Available / (float)Required;
+				MinInputAvailability = FMath::Min(MinInputAvailability, Availability);
+			}
+		}
+
+		// Efficiency is the minimum input availability (bottleneck)
+		Recipe.CurrentEfficiency = FMath::Clamp(MinInputAvailability, 0.0f, 1.0f);
+		OverallEfficiency += Recipe.CurrentEfficiency;
+		RecipeCount++;
+	}
+
+	// Store average production efficiency in market state
+	if (RecipeCount > 0)
+	{
+		Location.Market.ProductionEfficiency = OverallEfficiency / RecipeCount;
+	}
+	else
+	{
+		Location.Market.ProductionEfficiency = 1.0f;
+	}
 }
 
 float UEconomySubsystem::CalculateEconomicStress(int32 SystemId, const FLocationData& Location)

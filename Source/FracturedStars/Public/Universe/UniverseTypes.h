@@ -195,6 +195,44 @@ struct FGoodDefinition
 typedef EGoodType EResourceType;
 
 /**
+ * Shortage location reference
+ * Globally unique reference to a location experiencing a shortage
+ * Used by logistics to match trade routes
+ */
+USTRUCT(BlueprintType)
+struct FShortageLocation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 SystemId = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 LocationId = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	EGoodType GoodType = EGoodType::Food;
+
+	// Shortage severity (0.0 = none, 1.0 = critical)
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float Severity = 0.0f;
+
+	FShortageLocation()
+		: SystemId(-1)
+		, LocationId(-1)
+		, GoodType(EGoodType::Food)
+		, Severity(0.0f)
+	{}
+
+	FShortageLocation(int32 InSystemId, int32 InLocationId, EGoodType InGoodType, float InSeverity = 0.0f)
+		: SystemId(InSystemId)
+		, LocationId(InLocationId)
+		, GoodType(InGoodType)
+		, Severity(InSeverity)
+	{}
+};
+
+/**
  * Resource profile entry
  * Quantity of a specific resource type
  */
@@ -304,9 +342,23 @@ struct FMarketState
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	bool bIsActiveSimulation = false;
 
+	// Production efficiency multiplier (0.0 - 2.0)
+	// Affected by shortages of critical goods (food, water, fuel, machinery)
+	// Below 1.0 = reduced production, above 1.0 = bonus production
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float ProductionEfficiency = 1.0f;
+
+	// Economic stress level (0.0 - 1.0)
+	// 0.0 = healthy, 1.0 = critical shortages across multiple goods
+	// Used for news events, faction relations, mission generation
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	float EconomicStress = 0.0f;
+
 	FMarketState()
 		: LastUpdateTime(0.0)
 		, bIsActiveSimulation(false)
+		, ProductionEfficiency(1.0f)
+		, EconomicStress(0.0f)
 	{}
 };
 
