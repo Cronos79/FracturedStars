@@ -202,6 +202,12 @@ struct FTradeRoute
 	UPROPERTY(BlueprintReadOnly, Category = "Logistics")
 	TArray<int32> JumpPath;
 
+	// Current position in JumpPath (which system index ship is at)
+	// Sprint 6: Tracks ship movement through jump network
+	// 0 = at source, JumpPath.Num()-1 = at destination
+	UPROPERTY(BlueprintReadOnly, Category = "Logistics")
+	int32 RouteProgress = 0;
+
 	// Estimated profit for this route (credits)
 	UPROPERTY(BlueprintReadOnly, Category = "Logistics")
 	float EstimatedProfit = 0.0f;
@@ -242,6 +248,7 @@ struct FTradeRoute
 		, DestinationLocationId(-1)
 		, GoodType(EGoodType::Food)
 		, CargoQuantity(0)
+		, RouteProgress(0)
 		, EstimatedProfit(0.0f)
 		, RouteDistance(0)
 		, EstimatedTransitTime(0.0f)

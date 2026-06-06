@@ -129,10 +129,59 @@ void ULogisticsSubsystem::InitializeLogistics(const FUniverseData& UniverseData)
 			HomeSystemId);
 	}
 
-	// Sprint 6 fallback: If no factions exist yet, create one independent company for testing
-	if (LogisticsCompanies.Num() == 0)
+	// Create independent logistics companies (neutral traders)
+	// These handle cross-faction trade, contraband, lawless/neutral space trade
+	// Smaller fleets but more flexible - can trade anywhere
+	int32 IndependentCompanyCount = 2; // Create 2 independent traders
+
+	for (int32 i = 0; i < IndependentCompanyCount; ++i)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("  No factions found - creating independent test company"));
+		FString IndependentName = FString::Printf(TEXT("Independent Traders %d"), i + 1);
+		FLogisticsCompany IndependentCompany(NextCompanyId++, IndependentName);
+		IndependentCompany.OwningFactionId = -1; // No faction affiliation
+		IndependentCompany.HomeSystemId = -1; // No fixed home (operate from hubs)
+		IndependentCompany.Credits = 300000.0f; // Smaller initial capital
+
+		LogisticsCompanies.Add(IndependentCompany);
+
+		// Independent traders get 2-3 ships each
+		int32 IndependentShips = 2 + (i % 2);
+
+		// Deploy ships across different neutral/trade hub systems
+		for (int32 ShipNum = 0; ShipNum < IndependentShips; ++ShipNum)
+		{
+			// Find a good neutral hub system (high trade, neutral/lawless)
+			int32 DeploySystemId = 0;
+			for (int32 SysIdx = 0; SysIdx < UniverseData.Systems.Num(); ++SysIdx)
+			{
+				const FStarSystemData& Sys = UniverseData.Systems[SysIdx];
+				if (Sys.RegionType == ERegionType::Neutral || Sys.RegionType == ERegionType::Lawless)
+				{
+					DeploySystemId = SysIdx;
+					break;
+				}
+			}
+
+			FString ShipName = FString::Printf(TEXT("IND-%d-FL-%d"), i + 1, ShipNum + 1);
+			int32 CargoCapacity = 4000 + FMath::RandRange(0, 2000); // Medium capacity
+
+			int32 ShipId = CreateCargoShip(IndependentCompany.CompanyId, DeploySystemId, ShipName, CargoCapacity);
+
+			if (ShipId != -1)
+			{
+				IndependentCompany.ActiveShipCount++;
+			}
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("  Independent: %s - %d ships (neutral trader)"),
+			*IndependentName,
+			IndependentCompany.ActiveShipCount);
+	}
+
+	// Sprint 6 fallback: If no factions exist yet, create one independent company for testing
+	if (LogisticsCompanies.Num() == IndependentCompanyCount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("  No factions found - creating additional test company"));
 
 		FLogisticsCompany TestCompany(NextCompanyId++, TEXT("Independent Test Logistics"));
 		TestCompany.OwningFactionId = -1; // Independent
@@ -152,8 +201,8 @@ void ULogisticsSubsystem::InitializeLogistics(const FUniverseData& UniverseData)
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("LogisticsSubsystem: Initialized %d faction fleets with %d total ships"), 
-		LogisticsCompanies.Num(), FleetRegistry.Num());
+	UE_LOG(LogTemp, Log, TEXT("LogisticsSubsystem: Initialized %d companies (%d faction + %d independent) with %d total ships"), 
+		LogisticsCompanies.Num(), LogisticsCompanies.Num() - IndependentCompanyCount, IndependentCompanyCount, FleetRegistry.Num());
 
 	// Set up periodic tick timer
 	if (UWorld* World = GetWorld())
@@ -309,20 +358,24 @@ int32 ULogisticsSubsystem::CreateCargoShip(int32 CompanyId, int32 StartSystemId,
 	Ship.CurrentLocationId = -1; // -1 = space/generic dock
 	Ship.Status = EShipStatus::Docked;
 
-	// Cargo & Fuel (placeholder values - real ship would have frame-based capacity)
-	Ship.CargoCapacity = CargoCapacity;
+	// Frame & components - set frame type first
+	Ship.FrameId = FName(TEXT("Freighter_Basic")); // Default medium freighter
+
+	// Get cargo & fuel capacity from frame definition
+	int32 FrameCargoCapacity = 0;
+	int32 FrameFuelCapacity = 0;
+	GetFrameBaseStats(Ship.FrameId, FrameCargoCapacity, FrameFuelCapacity);
+
+	Ship.CargoCapacity = FrameCargoCapacity;
 	Ship.CurrentCargoUsed = 0;
 	Ship.CargoInventory.Empty();
 
-	Ship.FuelCapacity = 1000; // Placeholder
-	Ship.CurrentFuel = 1000;  // Start fully fueled
+	Ship.FuelCapacity = FrameFuelCapacity;
+	Ship.CurrentFuel = FrameFuelCapacity;  // Start fully fueled
 
 	// Ship operational state
 	Ship.bIsOperational = true;
 	Ship.HullCondition = 100.0f;
-
-	// Frame & components (minimal for now - future: assign actual freighter frame)
-	Ship.FrameId = FName(TEXT("Freighter_Basic")); // Placeholder
 
 	// Add to fleet registry
 	FleetRegistry.Add(ShipId, Ship);
@@ -330,8 +383,8 @@ int32 ULogisticsSubsystem::CreateCargoShip(int32 CompanyId, int32 StartSystemId,
 	// Add ship ID to company's owned ships
 	Company->OwnedShipIds.Add(ShipId);
 
-	UE_LOG(LogTemp, Log, TEXT("    Created cargo ship: %s (ID: %d, Faction: %d, Capacity: %d, System: %d)"),
-		*ShipName, ShipId, Ship.OwnerId, CargoCapacity, StartSystemId);
+	UE_LOG(LogTemp, Log, TEXT("    Created cargo ship: %s (ID: %d, Faction: %d, Frame: %s, Capacity: %d, System: %d)"),
+		*ShipName, ShipId, Ship.OwnerId, *Ship.FrameId.ToString(), Ship.CargoCapacity, StartSystemId);
 
 	return ShipId;
 }
@@ -741,6 +794,37 @@ FString ULogisticsSubsystem::GetLocationName(const FUniverseData& UniverseData, 
 	return FString::Printf(TEXT("Unknown Location %d"), LocationId);
 }
 
+void ULogisticsSubsystem::GetFrameBaseStats(FName FrameId, int32& OutCargoCapacity, int32& OutFuelCapacity) const
+{
+	// Sprint 6: Hardcoded frame stats for common freighter types
+	// Future: Look up from FShipFrameDefinition registry
+
+	FString FrameIdStr = FrameId.ToString();
+
+	if (FrameIdStr.Contains(TEXT("Freighter_Basic")) || FrameIdStr.Contains(TEXT("MediumFreighter")))
+	{
+		OutCargoCapacity = 5000;  // Medium freighter: 5000 units
+		OutFuelCapacity = 1000;
+	}
+	else if (FrameIdStr.Contains(TEXT("Freighter_Heavy")) || FrameIdStr.Contains(TEXT("HeavyFreighter")))
+	{
+		OutCargoCapacity = 10000;  // Heavy freighter: 10000 units
+		OutFuelCapacity = 1500;
+	}
+	else if (FrameIdStr.Contains(TEXT("Freighter_Light")) || FrameIdStr.Contains(TEXT("StarterTrade")))
+	{
+		OutCargoCapacity = 2000;  // Light/starter: 2000 units
+		OutFuelCapacity = 500;
+	}
+	else
+	{
+		// Default fallback
+		OutCargoCapacity = 5000;
+		OutFuelCapacity = 1000;
+		UE_LOG(LogTemp, Warning, TEXT("LogisticsSubsystem: Unknown frame type '%s', using default stats"), *FrameIdStr);
+	}
+}
+
 // ============================================================================
 // TRADE REQUEST & EXPORT DETECTION
 // ============================================================================
@@ -1001,9 +1085,6 @@ void ULogisticsSubsystem::MatchTrades(const FUniverseData& UniverseData)
 	// Process each request
 	for (FTradeRequest* Request : SortedRequests)
 	{
-		// SPRINT 7: Determine which faction controls the requesting location
-		int32 RequestFactionId = GetLocationControllingFaction(UniverseData, Request->SystemId, Request->LocationId);
-
 		// Find matching export opportunities
 		TArray<FExportOpportunity*> MatchingExports;
 		for (FExportOpportunity& Opp : ExportOpportunities)
@@ -1015,17 +1096,13 @@ void ULogisticsSubsystem::MatchTrades(const FUniverseData& UniverseData)
 				if (Opp.SystemId == Request->SystemId && Opp.LocationId == Request->LocationId)
 					continue;
 
-				// SPRINT 7: FACTION BOUNDARY ENFORCEMENT
-				// Only consider exports from locations controlled by the same faction
-				int32 ExportFactionId = GetLocationControllingFaction(UniverseData, Opp.SystemId, Opp.LocationId);
-
-				// Both must be controlled by the same faction
-				// OR both must be independent (-1) to trade
-				if (RequestFactionId != ExportFactionId)
-				{
-					// Different factions or one is independent - no cross-faction trade allowed
-					continue;
-				}
+				// CROSS-FACTION TRADE ENABLED
+				// Core vision: Economy drives everything. Earth needs Mars engines,
+				// Mars needs Earth food, medicine comes from specialized factions, etc.
+				// 
+				// Future enhancement: Add faction relations/embargo system
+				// to restrict trade based on diplomacy (war, sanctions, etc.)
+				// For now, all trade is allowed if economically viable.
 
 				MatchingExports.Add(&Opp);
 			}
@@ -1078,27 +1155,47 @@ void ULogisticsSubsystem::MatchTrades(const FUniverseData& UniverseData)
 		if (!BestExport)
 			continue;
 
-		// SPRINT 7: Find the faction logistics company that serves this route
-		// Ships ONLY serve their owning faction - no cross-faction borrowing
-		int32 RouteFactionId = GetLocationControllingFaction(UniverseData, Request->SystemId, Request->LocationId);
+		// Find logistics company to serve this route
+		// Priority: Export faction's company (closest to source) > Any faction with idle ships > Independent traders
+		// This enables cross-faction trade while keeping faction fleets as primary trade mechanism
 
-		// Find the company that belongs to this faction
+		int32 ExportFactionId = GetLocationControllingFaction(UniverseData, BestExport->SystemId, BestExport->LocationId);
+		int32 RequestFactionId = GetLocationControllingFaction(UniverseData, Request->SystemId, Request->LocationId);
+
+		// Try 1: Exporting faction's company (most efficient - ship starts near cargo)
 		int32 CompanyId = -1;
 		for (const FLogisticsCompany& Company : LogisticsCompanies)
 		{
-			if (Company.OwningFactionId == RouteFactionId)
+			if (Company.OwningFactionId == ExportFactionId)
 			{
 				CompanyId = Company.CompanyId;
 				break;
 			}
 		}
 
+		// Try 2: Importing faction's company (second choice)
+		if (CompanyId == -1 && RequestFactionId != ExportFactionId)
+		{
+			for (const FLogisticsCompany& Company : LogisticsCompanies)
+			{
+				if (Company.OwningFactionId == RequestFactionId)
+				{
+					CompanyId = Company.CompanyId;
+					break;
+				}
+			}
+		}
+
+		// Try 3: Any faction or independent trader with idle ships
 		if (CompanyId == -1)
 		{
-			// No logistics company for this faction - cannot fulfill trade
-			// This faction needs to BUILD a logistics fleet!
-			UE_LOG(LogTemp, Verbose, TEXT("LogisticsSubsystem: No logistics company for faction %d - cannot serve request"), 
-				RouteFactionId);
+			CompanyId = GetBestAvailableCompany();
+		}
+
+		if (CompanyId == -1)
+		{
+			// No logistics company has available ships
+			UE_LOG(LogTemp, Verbose, TEXT("LogisticsSubsystem: No available ships for trade - all fleets busy"));
 			continue;
 		}
 
@@ -1124,15 +1221,13 @@ void ULogisticsSubsystem::MatchTrades(const FUniverseData& UniverseData)
 			continue;
 		}
 
-		// Sprint 7: Find ship near the route source (FACTION-OWNED ships only)
-		// The company's fleet ONLY serves its own faction
+		// Find ship near the route source from the selected company
 		int32 ShipId = FindIdleShipNearSystem(CompanyId, Route.SourceSystemId, UniverseData);
 		if (ShipId == -1)
 		{
-			// This faction has no idle ships - must wait or build more
-			// OTHER factions' idle ships CANNOT be borrowed
-			UE_LOG(LogTemp, Verbose, TEXT("LogisticsSubsystem: Faction %d company has no idle ships - trade delayed"), 
-				RouteFactionId);
+			// Company has no idle ships - trade must wait
+			UE_LOG(LogTemp, Verbose, TEXT("LogisticsSubsystem: Company %d has no idle ships - trade delayed"), 
+				CompanyId);
 			continue;
 		}
 
@@ -1580,11 +1675,10 @@ void ULogisticsSubsystem::TickShipTransit(FUniverseData& UniverseData, double Cu
 	}
 }
 
-void ULogisticsSubsystem::AdvanceShipAlongRoute(FShipData& Ship, const FTradeRoute& Route, double CurrentGameTime)
+void ULogisticsSubsystem::AdvanceShipAlongRoute(FShipData& Ship, FTradeRoute& Route, double CurrentGameTime)
 {
-	// Move ship to next system in route
-	// Sprint 6: Simplified - jump directly to destination
-	// Future sprints can add multi-hop pathfinding with jump fuel consumption
+	// Sprint 6: Ship traverses jump network one system at a time
+	// Uses RouteProgress to track position in JumpPath
 
 	if (Route.JumpPath.IsEmpty())
 	{
@@ -1592,14 +1686,31 @@ void ULogisticsSubsystem::AdvanceShipAlongRoute(FShipData& Ship, const FTradeRou
 		return;
 	}
 
-	// For now, just move to destination
-	// Future: track RouteProgress through JumpPath
-	Ship.CurrentSystemId = Route.DestinationSystemId;
+	// Advance to next system in path
+	Route.RouteProgress++;
 
-	UE_LOG(LogTemp, Verbose, TEXT("Ship %s (Faction %d) arrived at system %d for delivery"),
+	// Safety check: don't go past destination
+	if (Route.RouteProgress >= Route.JumpPath.Num())
+	{
+		Route.RouteProgress = Route.JumpPath.Num() - 1;
+	}
+
+	// Update ship's current system
+	Ship.CurrentSystemId = Route.JumpPath[Route.RouteProgress];
+
+	// Log progress (verbose to avoid spam)
+	UE_LOG(LogTemp, Verbose, TEXT("Ship %s (Faction %d) jumped to system %d (progress: %d/%d)"),
 		*Ship.ShipName,
 		Ship.OwnerId,
-		Ship.CurrentSystemId);
+		Ship.CurrentSystemId,
+		Route.RouteProgress + 1,
+		Route.JumpPath.Num());
+
+	// Future enhancements:
+	// - Deduct jump fuel based on distance
+	// - Apply ship wear/tear per jump
+	// - Track jump time for realistic transit simulation
+	// - Handle jump gate dependencies vs independent FTL
 }
 
 // ============================================================================

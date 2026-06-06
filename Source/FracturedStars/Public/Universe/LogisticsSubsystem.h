@@ -247,10 +247,10 @@ public:
 	/**
 	 * Move a ship to the next system in its route
 	 * @param Ship - Ship to move (FShipData reference)
-	 * @param Route - Associated trade route
+	 * @param Route - Associated trade route (mutable to track RouteProgress)
 	 * @param CurrentGameTime - Current universe time
 	 */
-	void AdvanceShipAlongRoute(FShipData& Ship, const FTradeRoute& Route, double CurrentGameTime);
+	void AdvanceShipAlongRoute(FShipData& Ship, FTradeRoute& Route, double CurrentGameTime);
 
 	// ========================================================================
 	// STATISTICS & REPORTING
@@ -470,6 +470,16 @@ protected:
 	 * Get location name for logging
 	 */
 	FString GetLocationName(const FUniverseData& UniverseData, int32 SystemId, int32 LocationId) const;
+
+	/**
+	 * Get ship frame base stats by frame ID
+	 * Returns default freighter stats for now
+	 * Future: will look up from frame definition registry
+	 * @param FrameId - Frame identifier (e.g., "Freighter_Basic")
+	 * @param OutCargoCapacity - Output cargo capacity
+	 * @param OutFuelCapacity - Output fuel capacity
+	 */
+	void GetFrameBaseStats(FName FrameId, int32& OutCargoCapacity, int32& OutFuelCapacity) const;
 
 	/**
 	 * Catch up economy for systems within trade network radius
