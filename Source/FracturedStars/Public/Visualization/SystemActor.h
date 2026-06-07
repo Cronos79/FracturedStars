@@ -31,9 +31,25 @@ public:
 	// Components
 	// ===========================
 
-	/** Visual mesh for the system */
+	/** Visual mesh for the system (small dot) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> SystemMesh;
+
+	/** Glow ring mesh (shown on hover) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> GlowRingMesh;
+
+	/** Selection ring mesh (shown when selected, with pulse) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> SelectionRingMesh;
+
+	/** Homeworld icon mesh (shown for faction homeworlds) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> HomeworldIconMesh;
+
+	/** Player asset icon mesh (shown when player has ships/stations here) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> PlayerAssetIconMesh;
 
 	// ===========================
 	// System Data
@@ -55,6 +71,18 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "System")
 	bool bIsHovered;
 
+	/** Is this system a faction homeworld? */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "System")
+	bool bIsHomeworld;
+
+	/** Does the player have assets (ships/stations) in this system? */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "System")
+	bool bHasPlayerAssets;
+
+	/** Faction ID that owns this system (for homeworld icon color) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "System")
+	int32 OwningFactionId;
+
 	// ===========================
 	// Interaction
 	// ===========================
@@ -71,6 +99,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "System")
 	void SetHovered(bool bHovered);
 
+	/** Set whether this is a homeworld */
+	UFUNCTION(BlueprintCallable, Category = "System")
+	void SetHomeworld(bool bHomeworld, int32 FactionId = -1);
+
+	/** Set whether player has assets here */
+	UFUNCTION(BlueprintCallable, Category = "System")
+	void SetPlayerAssets(bool bHasAssets);
+
 	// ===========================
 	// Visual Updates
 	// ===========================
@@ -82,6 +118,25 @@ public:
 	/** Dynamic material instance for visual effects */
 	UPROPERTY(BlueprintReadOnly, Category = "System")
 	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
+
+	/** Dynamic material instance for glow ring */
+	UPROPERTY(BlueprintReadOnly, Category = "System")
+	TObjectPtr<UMaterialInstanceDynamic> GlowRingMaterial;
+
+	/** Dynamic material instance for selection ring */
+	UPROPERTY(BlueprintReadOnly, Category = "System")
+	TObjectPtr<UMaterialInstanceDynamic> SelectionRingMaterial;
+
+	// ===========================
+	// Pulse Effect
+	// ===========================
+
+	/** Current pulse time (for animating selection ring) */
+	float PulseTime;
+
+	/** Pulse speed (cycles per second) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "System|Visual")
+	float PulseSpeed;
 
 	// ===========================
 	// Configuration

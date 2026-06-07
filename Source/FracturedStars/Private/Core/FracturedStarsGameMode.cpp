@@ -3,8 +3,12 @@
 #include "Core/FracturedStarsGameMode.h"
 #include "Player/FracturedStarsPlayerController.h"
 #include "Player/UniverseCameraPawn.h"
+#include "Player/PlayerSubsystem.h"
 #include "Universe/UniverseSubsystem.h"
+#include "Universe/FactionSubsystem.h"
 #include "Visualization/SystemActor.h"
+#include "Ship/ShipData.h"
+#include "EngineUtils.h"
 
 AFracturedStarsGameMode::AFracturedStarsGameMode()
 {
@@ -99,6 +103,19 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 		}
 
 		UE_LOG(LogTemp, Log, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - Universe generated successfully"));
+
+		// Initialize FactionSubsystem with the generated universe data
+		UFactionSubsystem* FactionSubsystem = GameInstance->GetSubsystem<UFactionSubsystem>();
+		if (FactionSubsystem)
+		{
+			const FUniverseData& UniverseData = UniverseSubsystem->GetUniverseData();
+			FactionSubsystem->InitializeFactions(UniverseData);
+			UE_LOG(LogTemp, Log, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - FactionSubsystem initialized"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - No FactionSubsystem found!"));
+		}
 	}
 
 	const FUniverseData& Universe = UniverseSubsystem->GetUniverseData();
@@ -141,6 +158,26 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 		{
 			SystemActor->SystemId = System.SystemId;
 			SystemActor->SystemName = System.SystemName;
+
+			// Wire faction ownership and homeworld state
+			SystemActor->OwningFactionId = System.ControllingFactionId;
+
+			// Mark as homeworld if this system is a faction's home system
+			bool bIsHomeworld = false;
+			if (System.ControllingFactionId >= 0)
+			{
+				UFactionSubsystem* FactionSubsystem = GameInstance->GetSubsystem<UFactionSubsystem>();
+				if (FactionSubsystem)
+				{
+					FFactionData FactionData;
+					if (FactionSubsystem->GetFactionById(System.ControllingFactionId, FactionData))
+					{
+						bIsHomeworld = (FactionData.HomeSystemId == System.SystemId);
+					}
+				}
+			}
+			SystemActor->SetHomeworld(bIsHomeworld, System.ControllingFactionId);
+
 			SpawnedCount++;
 
 			// Log first few spawns to verify
@@ -160,4 +197,42 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 
 	UE_LOG(LogTemp, Log, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - Complete (spawned %d, failed %d, total %d systems)"), 
 		SpawnedCount, FailedCount, Universe.Systems.Num());
+
+	// Refresh player-asset markers after all actors are spawned
+	RefreshPlayerAssetMarkers();
+}
+
+void AFracturedStarsGameMode::RefreshPlayerAssetMarkers()
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance) return;
+
+	UPlayerSubsystem* PlayerSubsystem = GameInstance->GetSubsystem<UPlayerSubsystem>();
+	if (!PlayerSubsystem) return;
+
+	// Build a set of system IDs that contain player ships
+	TSet<int32> SystemsWithPlayerAssets;
+	for (int32 PlayerId : PlayerSubsystem->GetAllPlayerIds())
+	{
+		for (const FShipData& Ship : PlayerSubsystem->GetPlayerShips(PlayerId))
+		{
+			if (Ship.CurrentSystemId >= 0)
+			{
+				SystemsWithPlayerAssets.Add(Ship.CurrentSystemId);
+			}
+		}
+	}
+
+	// Update every SystemActor in the world
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	for (TActorIterator<ASystemActor> It(World); It; ++It)
+	{
+		ASystemActor* Actor = *It;
+		if (Actor)
+		{
+			Actor->SetPlayerAssets(SystemsWithPlayerAssets.Contains(Actor->SystemId));
+		}
+	}
 }

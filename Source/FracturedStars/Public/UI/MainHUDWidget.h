@@ -99,6 +99,123 @@ public:
 	static FString GetMonthName(int32 Month);
 
 	// ========================================================================
+	// System Data Helpers (for richer context panel)
+	// ========================================================================
+
+	/**
+	 * Get number of planets in a system
+	 * @param SystemId - System identifier
+	 * @return Count of planets
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|System")
+	int32 GetSystemPlanetCount(int32 SystemId) const;
+
+	/**
+	 * Get number of stations in a system
+	 * @param SystemId - System identifier
+	 * @return Count of stations
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|System")
+	int32 GetSystemStationCount(int32 SystemId) const;
+
+	/**
+	 * Get number of asteroid fields in a system
+	 * @param SystemId - System identifier
+	 * @return Count of asteroid fields
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|System")
+	int32 GetSystemAsteroidFieldCount(int32 SystemId) const;
+
+	/**
+	 * Get faction name for a faction ID
+	 * @param FactionId - Faction identifier
+	 * @return Faction name or "Unknown" if not found
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Faction")
+	FString GetFactionName(int32 FactionId) const;
+
+	/**
+	 * Get faction color for a faction ID
+	 * @param FactionId - Faction identifier
+	 * @return Faction color or white if not found
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Faction")
+	FLinearColor GetFactionColor(int32 FactionId) const;
+
+	/**
+	 * Get list of shortages for a system (aggregated from all locations)
+	 * @param SystemId - System identifier
+	 * @return Array of good types that are in shortage
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Economy")
+	TArray<FString> GetSystemShortages(int32 SystemId) const;
+
+	/**
+	 * Get list of surpluses for a system (aggregated from all locations)
+	 * @param SystemId - System identifier
+	 * @return Array of good types that are in surplus
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Economy")
+	TArray<FString> GetSystemSurpluses(int32 SystemId) const;
+
+	/**
+	 * Get total population for a system (sum of all locations)
+	 * @param SystemId - System identifier
+	 * @return Total population count
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|System")
+	int32 GetSystemTotalPopulation(int32 SystemId) const;
+
+	/**
+	 * Get count of known trade routes passing through a system
+	 * @param SystemId - System identifier
+	 * @return Number of trade routes
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Logistics")
+	int32 GetSystemTradeRouteCount(int32 SystemId) const;
+
+	/**
+	 * Get count of known ships in a system (player ships only)
+	 * @param SystemId - System identifier
+	 * @return Number of player ships in this system
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Ships")
+	int32 GetSystemShipCount(int32 SystemId) const;
+
+	/**
+	 * Get goods imported into a system (faction CurrentImports filtered to this system's faction)
+	 * @param SystemId - System identifier
+	 * @return Array of imported good names
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Economy")
+	TArray<FString> GetSystemImports(int32 SystemId) const;
+
+	/**
+	 * Get goods exported from a system (faction CurrentExports filtered to this system's faction)
+	 * @param SystemId - System identifier
+	 * @return Array of exported good names
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Economy")
+	TArray<FString> GetSystemExports(int32 SystemId) const;
+
+	/**
+	 * Get the controlling faction ID for a system
+	 * @param SystemId - System identifier
+	 * @return FactionId or -1 if uncontrolled
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Faction")
+	int32 GetSystemFactionId(int32 SystemId) const;
+
+	/**
+	 * Check if the player has any ships in a system
+	 * @param PlayerId - Player identifier
+	 * @param SystemId - System identifier
+	 * @return True if player has ships here
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI|Ships")
+	bool PlayerHasShipsInSystem(int32 PlayerId, int32 SystemId) const;
+
+	// ========================================================================
 	// Selection State
 	// ========================================================================
 

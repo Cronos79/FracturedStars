@@ -40,6 +40,9 @@ protected:
 	// Sprint 8: Galaxy visualization
 	void SpawnGalaxyVisualization();
 
+	// Refresh player-asset markers on all SystemActors from current PlayerSubsystem state
+	void RefreshPlayerAssetMarkers();
+
 	// Future: Game session configuration
 	// Future: Server-side rule enforcement
 };
