@@ -6,10 +6,13 @@
 #include "Universe/UniverseSubsystem.h"
 #include "Universe/FogOfWarSubsystem.h"
 #include "Input/FracturedStarsInputConfig.h"
+#include "UI/MainHUDWidget.h"
+#include "Visualization/SystemActor.h"
 #include "Net/UnrealNetwork.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Blueprint/UserWidget.h"
 
 AFracturedStarsPlayerController::AFracturedStarsPlayerController()
 {
@@ -358,8 +361,22 @@ void AFracturedStarsPlayerController::FocusCameraOnPlayerShip()
 
 void AFracturedStarsPlayerController::OnClick(const FInputActionValue& Value)
 {
-	// Future: Raycast for selection, click UI, etc.
-	UE_LOG(LogTemp, Verbose, TEXT("[PlayerController] Click"));
+	// Perform raycast to detect system actor clicks
+	FHitResult HitResult;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
+	{
+		// Check if we hit a system actor
+		if (ASystemActor* SystemActor = Cast<ASystemActor>(HitResult.GetActor()))
+		{
+			UE_LOG(LogTemp, Log, TEXT("[PlayerController] Clicked system %d (%s)"), SystemActor->SystemId, *SystemActor->SystemName);
+			SelectSystem(SystemActor->SystemId, SystemActor);
+			return;
+		}
+	}
+
+	// Clicked empty space - clear selection
+	UE_LOG(LogTemp, Verbose, TEXT("[PlayerController] Click on empty space - clearing selection"));
+	ClearSelection();
 }
 
 void AFracturedStarsPlayerController::OnRightClick(const FInputActionValue& Value)
@@ -434,6 +451,100 @@ void AFracturedStarsPlayerController::OnToggleDebugUI(const FInputActionValue& V
 {
 	// Future: Toggle debug overlay UI
 	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Toggle debug UI (not yet implemented)"));
+}
+
+// ============================================================================
+// UI & SELECTION
+// ============================================================================
+
+UMainHUDWidget* AFracturedStarsPlayerController::GetMainHUD()
+{
+	// Create HUD widget if needed
+	if (!MainHUDWidget && MainHUDClass)
+	{
+		// Create widget from the Blueprint class (MainHUDClass points to WBP_MainHUD)
+		MainHUDWidget = CreateWidget<UMainHUDWidget>(this, MainHUDClass);
+		if (MainHUDWidget)
+		{
+			MainHUDWidget->AddToViewport();
+			UE_LOG(LogTemp, Log, TEXT("[PlayerController] MainHUD created from class %s and added to viewport"), 
+				*MainHUDClass->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[PlayerController] Failed to create MainHUD widget from class %s!"), 
+				MainHUDClass ? *MainHUDClass->GetName() : TEXT("NULL"));
+		}
+	}
+	else if (!MainHUDClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerController] MainHUDClass is not set! Assign WBP_MainHUD in the controller Blueprint!"));
+	}
+
+	return MainHUDWidget;
+}
+
+void AFracturedStarsPlayerController::SetMainHUD(UMainHUDWidget* InHUDWidget)
+{
+	if (InHUDWidget)
+	{
+		MainHUDWidget = InHUDWidget;
+		UE_LOG(LogTemp, Log, TEXT("[PlayerController] MainHUD widget reference set from Blueprint: %s"), 
+			*InHUDWidget->GetClass()->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerController] Attempted to set NULL MainHUD widget!"));
+	}
+}
+
+void AFracturedStarsPlayerController::SelectSystem(int32 SystemId, ASystemActor* SystemActor)
+{
+	// Deselect previous system
+	if (SelectedSystemActor && SelectedSystemActor != SystemActor)
+	{
+		SelectedSystemActor->SetSelected(false);
+	}
+
+	// Update selection
+	SelectedSystemId = SystemId;
+	SelectedSystemActor = SystemActor;
+
+	// Update visual state
+	if (SelectedSystemActor)
+	{
+		SelectedSystemActor->SetSelected(true);
+	}
+
+	// Update HUD
+	UMainHUDWidget* HUD = GetMainHUD();
+	if (HUD)
+	{
+		HUD->SetSelectedSystem(SystemId);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Selected system %d"), SystemId);
+}
+
+void AFracturedStarsPlayerController::ClearSelection()
+{
+	// Deselect previous system actor
+	if (SelectedSystemActor)
+	{
+		SelectedSystemActor->SetSelected(false);
+		SelectedSystemActor = nullptr;
+	}
+
+	SelectedSystemId = -1;
+
+	// Update HUD
+	UMainHUDWidget* HUD = GetMainHUD();
+	if (HUD)
+	{
+		HUD->ClearSelection();
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("[PlayerController] Selection cleared"));
 }
 
 // ============================================================================

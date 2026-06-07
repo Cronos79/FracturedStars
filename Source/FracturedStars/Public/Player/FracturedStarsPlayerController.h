@@ -11,6 +11,8 @@ class UFogOfWarSubsystem;
 class UUniverseSubsystem;
 class UInputMappingContext;
 class UFracturedStarsInputConfig;
+class UMainHUDWidget;
+class ASystemActor;
 struct FInputActionValue;
 
 /**
@@ -145,6 +147,42 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Player|Camera")
 	void FocusCameraOnPlayerShip();
 
+	/**
+	 * Get the main HUD widget (creates if needed)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|UI")
+	UMainHUDWidget* GetMainHUD();
+
+	/**
+	 * Set the main HUD widget (for Blueprint-created widgets)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|UI")
+	void SetMainHUD(UMainHUDWidget* InHUDWidget);
+
+	/**
+	 * Get currently selected system actor
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|Selection")
+	ASystemActor* GetSelectedSystemActor() const { return SelectedSystemActor; }
+
+	/**
+	 * Get currently selected system ID (-1 if none)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|Selection")
+	int32 GetSelectedSystemId() const { return SelectedSystemId; }
+
+	/**
+	 * Select a system by ID (updates HUD and visual state)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|Selection")
+	void SelectSystem(int32 SystemId, ASystemActor* SystemActor);
+
+	/**
+	 * Clear current selection
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player|Selection")
+	void ClearSelection();
+
 	// ========================================================================
 	// Input Handlers (Client-Side)
 	// ========================================================================
@@ -211,6 +249,21 @@ private:
 	mutable TObjectPtr<UPlayerSubsystem> CachedPlayerSubsystem;
 	mutable TObjectPtr<UUniverseSubsystem> CachedUniverseSubsystem;
 	mutable TObjectPtr<UFogOfWarSubsystem> CachedFogOfWarSubsystem;
+
+	/** Main HUD widget (lazy initialization) */
+	UPROPERTY()
+	TObjectPtr<UMainHUDWidget> MainHUDWidget;
+
+	/** Currently selected system actor */
+	UPROPERTY()
+	TObjectPtr<ASystemActor> SelectedSystemActor;
+
+	/** Currently selected system ID (-1 if none) */
+	int32 SelectedSystemId = -1;
+
+	/** HUD widget class to spawn */
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UMainHUDWidget> MainHUDClass;
 
 	// Camera movement parameters (editable for tuning)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Speed", meta = (AllowPrivateAccess = "true"))

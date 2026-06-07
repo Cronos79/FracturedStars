@@ -13,10 +13,12 @@
  * - Sets default controller and pawn classes for FracturedStars
  * - Handles player spawning and initialization
  * - Server-side game rules and session management
+ * - Sprint 8: Spawns galaxy visualization actors
  * 
  * Responsibilities:
  * - Spawn AFracturedStarsPlayerController for joining players
  * - Spawn AUniverseCameraPawn for each player
+ * - Initialize galaxy visualization on BeginPlay
  * - Future: Handle game session lifecycle
  * - Future: Manage server-side game rules
  */
@@ -30,10 +32,14 @@ public:
 
 	// AGameModeBase interface
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
+	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
 protected:
+	// Sprint 8: Galaxy visualization
+	void SpawnGalaxyVisualization();
+
 	// Future: Game session configuration
 	// Future: Server-side rule enforcement
 };
