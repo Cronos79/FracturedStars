@@ -210,6 +210,45 @@ void ASystemActor::SetPlayerAssets(bool bHasAssets)
 	UpdateVisualState();
 }
 
+void ASystemActor::SetBaseColor(FLinearColor NewColor)
+{
+	NormalColor = NewColor;
+	UpdateVisualState();
+}
+
+void ASystemActor::ApplyLawfulnessColor(float Lawfulness)
+{
+	SetBaseColor(GetLawfulnessColor(Lawfulness));
+}
+
+void ASystemActor::ApplyFactionColor(int32 FactionId)
+{}
+
+void ASystemActor::SetMapColorMode(EGalaxyMapColorMode Mode)
+{}
+
+FLinearColor ASystemActor::GetLawfulnessColor(float Lawfulness) const
+{
+	// Accept either 0-1 or 0-100 input.
+	if (Lawfulness > 1.0f)
+	{
+		Lawfulness /= 100.0f;
+	}
+
+	Lawfulness = FMath::Clamp(Lawfulness, 0.0f, 1.0f);
+
+	const FLinearColor Red = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
+	const FLinearColor Yellow = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+	const FLinearColor Green = FLinearColor(0.0f, 1.0f, 0.2f, 1.0f);
+
+	if (Lawfulness < 0.5f)
+	{
+		return FLinearColor::LerpUsingHSV(Red, Yellow, Lawfulness / 0.5f);
+	}
+
+	return FLinearColor::LerpUsingHSV(Yellow, Green, (Lawfulness - 0.5f) / 0.5f);
+}
+
 void ASystemActor::UpdateVisualState()
 {
 	if (!SystemMesh)

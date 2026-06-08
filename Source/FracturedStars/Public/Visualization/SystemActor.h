@@ -9,6 +9,17 @@
 class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
+UENUM(BlueprintType)
+enum class EGalaxyMapColorMode : uint8
+{
+	Default,
+	Lawfulness,
+	Faction,
+	Region,
+	FogOfWar,
+	Economy
+};
+
 /**
  * Visual representation of a star system on the galaxy map.
  * Handles selection, hover, and click interaction for systems.
@@ -110,6 +121,22 @@ public:
 	// ===========================
 	// Visual Updates
 	// ===========================
+
+	/** */
+	UFUNCTION(BlueprintCallable, Category = "System")
+	FLinearColor GetLawfulnessColor(float Lawfulness) const;
+
+	UFUNCTION(BlueprintCallable, Category = "System|Visual")
+	void SetBaseColor(FLinearColor NewColor);
+
+	UFUNCTION(BlueprintCallable, Category = "System|Visual")
+	void ApplyLawfulnessColor(float Lawfulness);
+
+	UFUNCTION(BlueprintCallable, Category = "System|Visual")
+	void ApplyFactionColor(int32 FactionId);
+
+	UFUNCTION(BlueprintCallable, Category = "System|Visual")
+	void SetMapColorMode(EGalaxyMapColorMode Mode);
 
 	/** Update visual state based on selection/hover */
 	UFUNCTION(BlueprintCallable, Category = "System")

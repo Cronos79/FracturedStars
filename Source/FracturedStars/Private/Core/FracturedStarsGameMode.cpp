@@ -158,6 +158,7 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 		{
 			SystemActor->SystemId = System.SystemId;
 			SystemActor->SystemName = System.SystemName;
+			SystemActor->ApplyLawfulnessColor(System.Lawfulness);
 
 			// Wire faction ownership and homeworld state
 			SystemActor->OwningFactionId = System.ControllingFactionId;
