@@ -90,10 +90,10 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - Universe not generated, generating now..."));
 
-		// Use default config (500 systems, 5 factions)
+		// Use default config (500 systems, 6 factions)
 		FUniverseConfig Config;
 		Config.SystemCount = 500;
-		Config.FactionCount = 5;
+		Config.FactionCount = 6;
 		Config.Seed = FMath::Rand(); // Random seed each time, or use a fixed value for reproducible universes
 
 		if (!UniverseSubsystem->GenerateUniverse(Config))

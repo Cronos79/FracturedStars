@@ -192,14 +192,12 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 {
 	UE_LOG(LogTemp, Log, TEXT("Assigning regions..."));
 
-	// Calculate distance from each system to ALL faction cores
 	for (FStarSystemData& System : Universe.Systems)
 	{
 		int32 MinDistance = MAX_int32;
 		int32 SecondMinDistance = MAX_int32;
 		int32 NearestFaction = -1;
 
-		// Find nearest and second-nearest faction
 		for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
 		{
 			int32 CoreSystemId = Universe.FactionHomeSystems[FactionIdx];
@@ -219,78 +217,63 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 
 		System.DistanceToFactionCore = MinDistance;
 
-		// Calculate influence gap between nearest and second-nearest factions
 		int32 InfluenceGap = SecondMinDistance - MinDistance;
+		bool bIsHomeSystem = (MinDistance == 0);
 
-		// ====== IMPROVED DISPUTED LOGIC ======
-		// Disputed = Two factions have SIMILAR influence over the system
-		// Example: System is 9 jumps from Faction A, 11 jumps from Faction B
-		//          → gap of 2 jumps = contested border!
+		bool bIsDisputed =
+			!bIsHomeSystem &&
+			MinDistance <= 12 &&
+			SecondMinDistance <= 16 &&
+			InfluenceGap <= 3;
 
-		bool bIsDisputed = false;
-		if (MinDistance <= 12 &&           // Not too far from nearest faction
-			SecondMinDistance <= 16 &&     // Second faction also has reach
-			InfluenceGap <= 3)             // Similar influence (close competition)
+		if (bIsHomeSystem)
 		{
-			bIsDisputed = true;
-		}
-
-		// Assign regions based on distance and influence
-		if (bIsDisputed)
-		{
-			// Contested border zone - two factions competing for control
-			System.RegionType = ERegionType::Disputed;
-			System.ControllingFactionId = -1; // No clear controller
-		}
-		else if (MinDistance == 0)
-		{
-			// Home system - controller already set in PlaceFactionCores for special cases like Sol
 			System.RegionType = ERegionType::FactionCore;
-			if (System.ControllingFactionId == -1) // Only set if not already assigned
+
+			if (System.ControllingFactionId == -1)
 			{
 				System.ControllingFactionId = NearestFaction;
 			}
 		}
+		else if (bIsDisputed)
+		{
+			System.RegionType = ERegionType::Disputed;
+			System.ControllingFactionId = -1;
+		}
 		else if (MinDistance <= 2)
 		{
-			// Core territory (2 jumps from home)
 			System.RegionType = ERegionType::FactionCore;
 			System.ControllingFactionId = NearestFaction;
 		}
 		else if (MinDistance <= 5)
 		{
-			// Frontier (3-5 jumps from home)
 			System.RegionType = ERegionType::FactionFrontier;
 			System.ControllingFactionId = NearestFaction;
 		}
 		else if (MinDistance <= 12)
 		{
-			// Outer influence sphere - neutral independent systems
 			System.RegionType = ERegionType::Neutral;
 			System.ControllingFactionId = -1;
 		}
 		else
 		{
-			// Far from all factions = lawless deep space
 			System.RegionType = ERegionType::Lawless;
 			System.ControllingFactionId = -1;
 		}
 	}
 
-	// Second pass: Mark frontier systems as disputed if directly adjacent to rival faction territory
 	for (FStarSystemData& System : Universe.Systems)
 	{
 		if (System.RegionType == ERegionType::FactionFrontier)
 		{
-			// Check if this frontier system touches a rival faction's core or frontier
 			bool bTouchesRival = false;
+
 			for (int32 ConnectedId : System.ConnectedSystemIds)
 			{
 				const FStarSystemData& ConnectedSystem = Universe.Systems[ConnectedId];
 
-				// If connected to rival faction's core/frontier territory
-				if ((ConnectedSystem.RegionType == ERegionType::FactionCore || 
-					 ConnectedSystem.RegionType == ERegionType::FactionFrontier) &&
+				if ((ConnectedSystem.RegionType == ERegionType::FactionCore ||
+					ConnectedSystem.RegionType == ERegionType::FactionFrontier) &&
 					ConnectedSystem.ControllingFactionId != -1 &&
 					ConnectedSystem.ControllingFactionId != System.ControllingFactionId)
 				{
@@ -299,11 +282,10 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 				}
 			}
 
-			// Direct border contact = disputed
 			if (bTouchesRival)
 			{
 				System.RegionType = ERegionType::Disputed;
-				System.ControllingFactionId = -1; // No longer clearly controlled
+				System.ControllingFactionId = -1;
 			}
 		}
 	}
@@ -311,32 +293,187 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 	UE_LOG(LogTemp, Log, TEXT("Regions assigned"));
 }
 
+//void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
+//{
+//	UE_LOG(LogTemp, Log, TEXT("Assigning regions..."));
+//
+//	// Calculate distance from each system to ALL faction cores
+//	for (FStarSystemData& System : Universe.Systems)
+//	{
+//		int32 MinDistance = MAX_int32;
+//		int32 SecondMinDistance = MAX_int32;
+//		int32 NearestFaction = -1;
+//
+//		// Find nearest and second-nearest faction
+//		for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
+//		{
+//			int32 CoreSystemId = Universe.FactionHomeSystems[FactionIdx];
+//			int32 Distance = CalculateJumpDistance(System.SystemId, CoreSystemId, Universe.Systems);
+//
+//			if (Distance < MinDistance)
+//			{
+//				SecondMinDistance = MinDistance;
+//				MinDistance = Distance;
+//				NearestFaction = FactionIdx;
+//			}
+//			else if (Distance < SecondMinDistance)
+//			{
+//				SecondMinDistance = Distance;
+//			}
+//		}
+//
+//		System.DistanceToFactionCore = MinDistance;
+//
+//		// Calculate influence gap between nearest and second-nearest factions
+//		int32 InfluenceGap = SecondMinDistance - MinDistance;		
+//
+//		// ====== IMPROVED DISPUTED LOGIC ======
+//		// Disputed = Two factions have SIMILAR influence over the system
+//		// Example: System is 9 jumps from Faction A, 11 jumps from Faction B
+//		//          → gap of 2 jumps = contested border!
+//
+//		bool bIsHomeSystem = (MinDistance == 0);
+//
+//		bool bIsDisputed = false;
+//		if (!bIsHomeSystem &&
+//			MinDistance <= 12 &&
+//			SecondMinDistance <= 16 &&
+//			InfluenceGap <= 3)
+//		{
+//			bIsDisputed = true;
+//		}
+//
+//		// home systems check
+//		if (MinDistance == 0)
+//		{
+//			System.RegionType = ERegionType::FactionCore;
+//
+//			if (System.ControllingFactionId == -1)
+//			{
+//				System.ControllingFactionId = NearestFaction;
+//			}
+//		}
+//		else if (bIsDisputed)
+//		{
+//			System.RegionType = ERegionType::Disputed;
+//			System.ControllingFactionId = -1;
+//		}
+//
+//		// Assign regions based on distance and influence
+//		if (bIsDisputed)
+//		{
+//			// Contested border zone - two factions competing for control
+//			System.RegionType = ERegionType::Disputed;
+//			System.ControllingFactionId = -1; // No clear controller
+//		}
+//		else if (MinDistance == 0)
+//		{
+//			// Home system - controller already set in PlaceFactionCores for special cases like Sol
+//			System.RegionType = ERegionType::FactionCore;
+//			if (System.ControllingFactionId == -1) // Only set if not already assigned
+//			{
+//				System.ControllingFactionId = NearestFaction;
+//			}
+//		}
+//		else if (MinDistance <= 2)
+//		{
+//			// Core territory (2 jumps from home)
+//			System.RegionType = ERegionType::FactionCore;
+//			System.ControllingFactionId = NearestFaction;
+//		}
+//		else if (MinDistance <= 5)
+//		{
+//			// Frontier (3-5 jumps from home)
+//			System.RegionType = ERegionType::FactionFrontier;
+//			System.ControllingFactionId = NearestFaction;
+//		}
+//		else if (MinDistance <= 12)
+//		{
+//			// Outer influence sphere - neutral independent systems
+//			System.RegionType = ERegionType::Neutral;
+//			System.ControllingFactionId = -1;
+//		}
+//		else
+//		{
+//			// Far from all factions = lawless deep space
+//			System.RegionType = ERegionType::Lawless;
+//			System.ControllingFactionId = -1;
+//		}
+//	}
+//
+//	// Second pass: Mark frontier systems as disputed if directly adjacent to rival faction territory
+//	for (FStarSystemData& System : Universe.Systems)
+//	{
+//		if (System.RegionType == ERegionType::FactionFrontier)
+//		{
+//			// Check if this frontier system touches a rival faction's core or frontier
+//			bool bTouchesRival = false;
+//			for (int32 ConnectedId : System.ConnectedSystemIds)
+//			{
+//				const FStarSystemData& ConnectedSystem = Universe.Systems[ConnectedId];
+//
+//				// If connected to rival faction's core/frontier territory
+//				if ((ConnectedSystem.RegionType == ERegionType::FactionCore || 
+//					 ConnectedSystem.RegionType == ERegionType::FactionFrontier) &&
+//					ConnectedSystem.ControllingFactionId != -1 &&
+//					ConnectedSystem.ControllingFactionId != System.ControllingFactionId)
+//				{
+//					bTouchesRival = true;
+//					break;
+//				}
+//			}
+//
+//			// Direct border contact = disputed
+//			if (bTouchesRival)
+//			{
+//				System.RegionType = ERegionType::Disputed;
+//				System.ControllingFactionId = -1; // No longer clearly controlled
+//			}
+//		}
+//	}
+//
+//	UE_LOG(LogTemp, Log, TEXT("Regions assigned"));
+//}
+
 void UUniverseGenerator::CalculateLawfulness(FUniverseData& Universe)
 {
 	UE_LOG(LogTemp, Log, TEXT("Calculating lawfulness values..."));
 
 	for (FStarSystemData& System : Universe.Systems)
 	{
+		float DistanceFactor = 1.0f - ((float)System.DistanceToFactionCore / 15.0f);
+		DistanceFactor = FMath::Clamp(DistanceFactor, 0.0f, 1.0f);
+
+		float RegionModifier = 0.0f;
+
 		switch (System.RegionType)
 		{
 		case ERegionType::FactionCore:
-			System.Lawfulness = FMath::FRandRange(0.9f, 1.0f);
+			RegionModifier = 0.15f;
 			break;
+
 		case ERegionType::FactionFrontier:
-			System.Lawfulness = FMath::FRandRange(0.6f, 0.8f);
+			RegionModifier = 0.0f;
 			break;
+
 		case ERegionType::Neutral:
-			System.Lawfulness = FMath::FRandRange(0.4f, 0.6f);
+			RegionModifier = -0.15f;
 			break;
+
 		case ERegionType::Disputed:
-			System.Lawfulness = FMath::FRandRange(0.2f, 0.4f);
+			RegionModifier = -0.35f;
 			break;
+
 		case ERegionType::Lawless:
-			System.Lawfulness = FMath::FRandRange(0.0f, 0.3f);
+			RegionModifier = -0.45f;
 			break;
+
 		default:
-			System.Lawfulness = 0.5f;
+			RegionModifier = -0.2f;
+			break;
 		}
+
+		System.Lawfulness = FMath::Clamp(DistanceFactor + RegionModifier, 0.0f, 1.0f);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Lawfulness calculated"));
