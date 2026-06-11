@@ -66,10 +66,10 @@ void AFracturedStarsGameMode::Logout(AController* Exiting)
 	Super::Logout(Exiting);
 }
 
-//const TArray<TObjectPtr<ASystemActor>>& AFracturedStarsGameMode::GetSpawnedSystemActors() const
-//{
-//	return SpawnedSystemActors;
-//}
+const TArray<TObjectPtr<ASystemActor>>& AFracturedStarsGameMode::GetSpawnedSystemActors() const
+{
+	return SpawnedSystemActors;
+}
 
 void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 {

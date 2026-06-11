@@ -47,7 +47,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
-	//const TArray<TObjectPtr<ASystemActor>>& GetSpawnedSystemActors() const;
+	const TArray<TObjectPtr<ASystemActor>>& GetSpawnedSystemActors() const;
 
 protected:
 	// Sprint 8: Galaxy visualization
