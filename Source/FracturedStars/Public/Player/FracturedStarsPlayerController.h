@@ -69,6 +69,12 @@ public:
 		return CurrentViewMode;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Player|View")
+	void OnRightClick(const FInputActionValue& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Player|View")
+	void SetGalaxyActorsVisibleForLocalPlayer(bool bVisible);
+
 	// ========================================================================
 	// Player Identity & State
 	// ========================================================================
@@ -221,9 +227,6 @@ protected:
 
 	/** Handle mouse click for selection */
 	void OnClick(const FInputActionValue& Value);
-
-	/** Handle mouse right-click for context commands */
-	void OnRightClick(const FInputActionValue& Value);
 
 	/** Handle camera pan (WASD or arrow keys) */
 	void OnCameraPan(const FInputActionValue& Value);

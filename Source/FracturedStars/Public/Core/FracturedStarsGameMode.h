@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Visualization/SystemActor.h"
 #include "FracturedStarsGameMode.generated.h"
 
 /**
@@ -34,6 +35,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Generation")
 	bool bUseRandomUniverseSeed = false;
 
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Universe Generation")
+	TArray<TObjectPtr<ASystemActor>> SpawnedSystemActors;
+
 public:
 	AFracturedStarsGameMode();
 
@@ -42,6 +47,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
+	//const TArray<TObjectPtr<ASystemActor>>& GetSpawnedSystemActors() const;
 
 protected:
 	// Sprint 8: Galaxy visualization

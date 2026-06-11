@@ -13,6 +13,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Blueprint/UserWidget.h"
+#include "EngineUtils.h"
 
 AFracturedStarsPlayerController::AFracturedStarsPlayerController()
 {
@@ -119,31 +120,69 @@ void AFracturedStarsPlayerController::Tick(float DeltaTime)
 	// Future: Update UI, selection highlighting, etc.
 }
 
+void AFracturedStarsPlayerController::OnRightClick(const FInputActionValue& Value)
+{
+	if (SelectedSystemId != -1)
+	{
+		EnterSystemView(SelectedSystemId);
+	}
+}
+
+void AFracturedStarsPlayerController::SetGalaxyActorsVisibleForLocalPlayer(bool bVisible)
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<ASystemActor> It(World); It; ++It)
+	{
+		ASystemActor* SystemActor = *It;
+		if (SystemActor)
+		{
+			SystemActor->SetActorHiddenInGame(!bVisible);
+			SystemActor->SetActorEnableCollision(bVisible);
+		}
+	}
+}
+
 void AFracturedStarsPlayerController::EnterGalaxyView()
 {
+	if (!IsLocalController())
+	{
+		return;
+	}
+
 	CurrentViewMode = EPlayerViewMode::Galaxy;
 	ViewedSystemId = -1;
 
-	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Entered Galaxy View"));
+	SetGalaxyActorsVisibleForLocalPlayer(true);
 
-	// Future:
-	// Show galaxy actors
-	// Hide/destroy system-view visual actors
-	// Update HUD layout
+	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Entered Galaxy View"));
 }
 
 void AFracturedStarsPlayerController::EnterSystemView(int32 SystemId)
 {
+	if (!IsLocalController())
+	{
+		return;
+	}
+
 	CurrentViewMode = EPlayerViewMode::System;
 	ViewedSystemId = SystemId;
 
+	SetGalaxyActorsVisibleForLocalPlayer(false);
+
 	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Entered System View: %d"), SystemId);
 
-	// Future:
-	// Hide galaxy actors
-	// Request/validate fog-of-war data
-	// Spawn local-only sun/planets/stations/belts for this system
-	// Update HUD context panel
+	// Next step:
+	// Spawn simple Sol/system visual actors here.
 }
 
 void AFracturedStarsPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -404,12 +443,6 @@ void AFracturedStarsPlayerController::OnClick(const FInputActionValue& Value)
 	// Clicked empty space - clear selection
 	UE_LOG(LogTemp, Verbose, TEXT("[PlayerController] Click on empty space - clearing selection"));
 	ClearSelection();
-}
-
-void AFracturedStarsPlayerController::OnRightClick(const FInputActionValue& Value)
-{
-	// Future: Context menu, move commands, etc.
-	UE_LOG(LogTemp, Verbose, TEXT("[PlayerController] Right click"));
 }
 
 void AFracturedStarsPlayerController::OnCameraPan(const FInputActionValue& Value)

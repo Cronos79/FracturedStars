@@ -66,6 +66,11 @@ void AFracturedStarsGameMode::Logout(AController* Exiting)
 	Super::Logout(Exiting);
 }
 
+//const TArray<TObjectPtr<ASystemActor>>& AFracturedStarsGameMode::GetSpawnedSystemActors() const
+//{
+//	return SpawnedSystemActors;
+//}
+
 void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 {
 	UE_LOG(LogTemp, Log, TEXT("FracturedStarsGameMode::SpawnGalaxyVisualization - Starting"));
@@ -182,6 +187,7 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 			SystemActor->SetHomeworld(bIsHomeworld, System.ControllingFactionId);
 
 			SpawnedCount++;
+			SpawnedSystemActors.Add(SystemActor);
 
 			// Log first few spawns to verify
 			if (SpawnedCount <= 5)
