@@ -28,6 +28,13 @@ class FRACTUREDSTARS_API AFracturedStarsGameMode : public AGameModeBase
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Generation")
+	int32 UniverseSeed = 12345;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Universe Generation")
+	bool bUseRandomUniverseSeed = false;
+
+public:
 	AFracturedStarsGameMode();
 
 	// AGameModeBase interface

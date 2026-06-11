@@ -94,7 +94,9 @@ void AFracturedStarsGameMode::SpawnGalaxyVisualization()
 		FUniverseConfig Config;
 		Config.SystemCount = 500;
 		Config.FactionCount = 6;
-		Config.Seed = FMath::Rand(); // Random seed each time, or use a fixed value for reproducible universes
+		Config.Seed = bUseRandomUniverseSeed ? FMath::Rand() : UniverseSeed;
+
+		UE_LOG(LogTemp, Warning, TEXT("Using Universe Seed: %d"), Config.Seed);
 
 		if (!UniverseSubsystem->GenerateUniverse(Config))
 		{

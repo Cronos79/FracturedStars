@@ -119,6 +119,33 @@ void AFracturedStarsPlayerController::Tick(float DeltaTime)
 	// Future: Update UI, selection highlighting, etc.
 }
 
+void AFracturedStarsPlayerController::EnterGalaxyView()
+{
+	CurrentViewMode = EPlayerViewMode::Galaxy;
+	ViewedSystemId = -1;
+
+	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Entered Galaxy View"));
+
+	// Future:
+	// Show galaxy actors
+	// Hide/destroy system-view visual actors
+	// Update HUD layout
+}
+
+void AFracturedStarsPlayerController::EnterSystemView(int32 SystemId)
+{
+	CurrentViewMode = EPlayerViewMode::System;
+	ViewedSystemId = SystemId;
+
+	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Entered System View: %d"), SystemId);
+
+	// Future:
+	// Hide galaxy actors
+	// Request/validate fog-of-war data
+	// Spawn local-only sun/planets/stations/belts for this system
+	// Update HUD context panel
+}
+
 void AFracturedStarsPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);

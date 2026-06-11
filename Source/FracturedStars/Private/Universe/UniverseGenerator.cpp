@@ -192,22 +192,29 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 {
 	UE_LOG(LogTemp, Log, TEXT("Assigning regions..."));
 
+	// Build unique faction core list.
+	// Earth and Mars can share Sol, but Sol should only count once for territory influence.
+	TArray<int32> UniqueCoreSystems;
+	for (int32 CoreSystemId : Universe.FactionHomeSystems)
+	{
+		UniqueCoreSystems.AddUnique(CoreSystemId);
+	}
+
 	for (FStarSystemData& System : Universe.Systems)
 	{
 		int32 MinDistance = MAX_int32;
 		int32 SecondMinDistance = MAX_int32;
-		int32 NearestFaction = -1;
+		int32 NearestCoreSystemId = -1;
 
-		for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
+		for (int32 CoreSystemId : UniqueCoreSystems)
 		{
-			int32 CoreSystemId = Universe.FactionHomeSystems[FactionIdx];
 			int32 Distance = CalculateJumpDistance(System.SystemId, CoreSystemId, Universe.Systems);
 
 			if (Distance < MinDistance)
 			{
 				SecondMinDistance = MinDistance;
 				MinDistance = Distance;
-				NearestFaction = FactionIdx;
+				NearestCoreSystemId = CoreSystemId;
 			}
 			else if (Distance < SecondMinDistance)
 			{
@@ -217,10 +224,21 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 
 		System.DistanceToFactionCore = MinDistance;
 
-		int32 InfluenceGap = SecondMinDistance - MinDistance;
-		bool bIsHomeSystem = (MinDistance == 0);
+		// Find which faction owns the nearest core system.
+		int32 NearestFaction = -1;
+		for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
+		{
+			if (Universe.FactionHomeSystems[FactionIdx] == NearestCoreSystemId)
+			{
+				NearestFaction = FactionIdx;
+				break;
+			}
+		}
 
-		bool bIsDisputed =
+		const bool bIsHomeSystem = (MinDistance == 0);
+		const int32 InfluenceGap = SecondMinDistance - MinDistance;
+
+		const bool bIsDisputed =
 			!bIsHomeSystem &&
 			MinDistance <= 12 &&
 			SecondMinDistance <= 16 &&
@@ -262,6 +280,7 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 		}
 	}
 
+	// Second pass: frontier systems touching rival faction territory become disputed.
 	for (FStarSystemData& System : Universe.Systems)
 	{
 		if (System.RegionType == ERegionType::FactionFrontier)
@@ -292,148 +311,6 @@ void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
 
 	UE_LOG(LogTemp, Log, TEXT("Regions assigned"));
 }
-
-//void UUniverseGenerator::AssignRegions(FUniverseData& Universe)
-//{
-//	UE_LOG(LogTemp, Log, TEXT("Assigning regions..."));
-//
-//	// Calculate distance from each system to ALL faction cores
-//	for (FStarSystemData& System : Universe.Systems)
-//	{
-//		int32 MinDistance = MAX_int32;
-//		int32 SecondMinDistance = MAX_int32;
-//		int32 NearestFaction = -1;
-//
-//		// Find nearest and second-nearest faction
-//		for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
-//		{
-//			int32 CoreSystemId = Universe.FactionHomeSystems[FactionIdx];
-//			int32 Distance = CalculateJumpDistance(System.SystemId, CoreSystemId, Universe.Systems);
-//
-//			if (Distance < MinDistance)
-//			{
-//				SecondMinDistance = MinDistance;
-//				MinDistance = Distance;
-//				NearestFaction = FactionIdx;
-//			}
-//			else if (Distance < SecondMinDistance)
-//			{
-//				SecondMinDistance = Distance;
-//			}
-//		}
-//
-//		System.DistanceToFactionCore = MinDistance;
-//
-//		// Calculate influence gap between nearest and second-nearest factions
-//		int32 InfluenceGap = SecondMinDistance - MinDistance;		
-//
-//		// ====== IMPROVED DISPUTED LOGIC ======
-//		// Disputed = Two factions have SIMILAR influence over the system
-//		// Example: System is 9 jumps from Faction A, 11 jumps from Faction B
-//		//          → gap of 2 jumps = contested border!
-//
-//		bool bIsHomeSystem = (MinDistance == 0);
-//
-//		bool bIsDisputed = false;
-//		if (!bIsHomeSystem &&
-//			MinDistance <= 12 &&
-//			SecondMinDistance <= 16 &&
-//			InfluenceGap <= 3)
-//		{
-//			bIsDisputed = true;
-//		}
-//
-//		// home systems check
-//		if (MinDistance == 0)
-//		{
-//			System.RegionType = ERegionType::FactionCore;
-//
-//			if (System.ControllingFactionId == -1)
-//			{
-//				System.ControllingFactionId = NearestFaction;
-//			}
-//		}
-//		else if (bIsDisputed)
-//		{
-//			System.RegionType = ERegionType::Disputed;
-//			System.ControllingFactionId = -1;
-//		}
-//
-//		// Assign regions based on distance and influence
-//		if (bIsDisputed)
-//		{
-//			// Contested border zone - two factions competing for control
-//			System.RegionType = ERegionType::Disputed;
-//			System.ControllingFactionId = -1; // No clear controller
-//		}
-//		else if (MinDistance == 0)
-//		{
-//			// Home system - controller already set in PlaceFactionCores for special cases like Sol
-//			System.RegionType = ERegionType::FactionCore;
-//			if (System.ControllingFactionId == -1) // Only set if not already assigned
-//			{
-//				System.ControllingFactionId = NearestFaction;
-//			}
-//		}
-//		else if (MinDistance <= 2)
-//		{
-//			// Core territory (2 jumps from home)
-//			System.RegionType = ERegionType::FactionCore;
-//			System.ControllingFactionId = NearestFaction;
-//		}
-//		else if (MinDistance <= 5)
-//		{
-//			// Frontier (3-5 jumps from home)
-//			System.RegionType = ERegionType::FactionFrontier;
-//			System.ControllingFactionId = NearestFaction;
-//		}
-//		else if (MinDistance <= 12)
-//		{
-//			// Outer influence sphere - neutral independent systems
-//			System.RegionType = ERegionType::Neutral;
-//			System.ControllingFactionId = -1;
-//		}
-//		else
-//		{
-//			// Far from all factions = lawless deep space
-//			System.RegionType = ERegionType::Lawless;
-//			System.ControllingFactionId = -1;
-//		}
-//	}
-//
-//	// Second pass: Mark frontier systems as disputed if directly adjacent to rival faction territory
-//	for (FStarSystemData& System : Universe.Systems)
-//	{
-//		if (System.RegionType == ERegionType::FactionFrontier)
-//		{
-//			// Check if this frontier system touches a rival faction's core or frontier
-//			bool bTouchesRival = false;
-//			for (int32 ConnectedId : System.ConnectedSystemIds)
-//			{
-//				const FStarSystemData& ConnectedSystem = Universe.Systems[ConnectedId];
-//
-//				// If connected to rival faction's core/frontier territory
-//				if ((ConnectedSystem.RegionType == ERegionType::FactionCore || 
-//					 ConnectedSystem.RegionType == ERegionType::FactionFrontier) &&
-//					ConnectedSystem.ControllingFactionId != -1 &&
-//					ConnectedSystem.ControllingFactionId != System.ControllingFactionId)
-//				{
-//					bTouchesRival = true;
-//					break;
-//				}
-//			}
-//
-//			// Direct border contact = disputed
-//			if (bTouchesRival)
-//			{
-//				System.RegionType = ERegionType::Disputed;
-//				System.ControllingFactionId = -1; // No longer clearly controlled
-//			}
-//		}
-//	}
-//
-//	UE_LOG(LogTemp, Log, TEXT("Regions assigned"));
-//}
 
 void UUniverseGenerator::CalculateLawfulness(FUniverseData& Universe)
 {
@@ -1362,6 +1239,48 @@ FString UUniverseGenerator::GenerateLocationName(int32 SystemId, int32 LocationI
 // SPRINT 7: FACTION INITIALIZATION
 // ============================================================================
 
+FString UUniverseGenerator::GetFixedFactionName(int32 FactionId)
+{
+	switch (FactionId)
+	{
+	case 0: return TEXT("Earth Government");
+	case 1: return TEXT("Mars Independence Movement");
+	case 2: return TEXT("Veyr Collective");
+	case 3: return TEXT("Auralith Covenant");
+	case 4: return TEXT("Khar-Tal Dominion");
+	case 5: return TEXT("The Dissonance");
+	default: return FString::Printf(TEXT("Unknown Faction %d"), FactionId);
+	}
+}
+
+FString UUniverseGenerator::GetFixedFactionSpecies(int32 FactionId)
+{
+	switch (FactionId)
+	{
+	case 0: return TEXT("Human");
+	case 1: return TEXT("Human");
+	case 2: return TEXT("Veyrian");
+	case 3: return TEXT("Auralith");
+	case 4: return TEXT("Khar-Tal");
+	case 5: return TEXT("Dissonant");
+	default: return FString::Printf(TEXT("Unknown Species %d"), FactionId);
+	}
+}
+
+float UUniverseGenerator::GetStartingCredits(int32 FactionId)
+{
+	switch (FactionId)
+	{
+	case 0: return 5000000.0f;
+	case 1: return 2000000.0f;
+	case 2: return 3500000.0f;
+	case 3: return 3000000.0f;
+	case 4: return 4000000.0f;
+	case 5: return 2500000.0f;
+	default: return 1000000.0f;
+	}
+}
+
 void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStream& RandStream)
 {
 	UE_LOG(LogTemp, Log, TEXT("Initializing %d factions..."), Universe.FactionHomeSystems.Num());
@@ -1369,49 +1288,22 @@ void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStre
 	Universe.Factions.Empty();
 	Universe.Factions.Reserve(Universe.FactionHomeSystems.Num());
 
-	// Temporary faction names (will be customized in future sprints)
-	static const TArray<FString> HumanFactionNames = {
-		TEXT("Earth Government"),
-		TEXT("Mars Independence Movement")
-	};
-
-	static const TArray<FString> AlienFactionNames = {
-		TEXT("Faction Alpha"),
-		TEXT("Faction Beta"),
-		TEXT("Faction Gamma"),
-		TEXT("Faction Delta"),
-		TEXT("Faction Epsilon")
-	};
-
 	for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
 	{
 		FFactionData Faction;
 		Faction.FactionId = FactionIdx;
 		Faction.HomeSystemId = Universe.FactionHomeSystems[FactionIdx];
 
-		// Faction 0 and 1 are human factions (Earth and Mars in Sol)
-		if (FactionIdx == 0)
-		{
-			Faction.FactionName = HumanFactionNames[0]; // Earth Government
-			Faction.FactionType = EFactionType::Human;
-			Faction.Credits = 5000000.0f; // Largest human power
-		}
-		else if (FactionIdx == 1)
-		{
-			Faction.FactionName = HumanFactionNames[1]; // Mars Independence
-			Faction.FactionType = EFactionType::Human;
-			Faction.Credits = 2000000.0f; // Smaller, rebel faction
-		}
-		else
-		{
-			// Alien factions
-			int32 NameIdx = (FactionIdx - 2) % AlienFactionNames.Num();
-			Faction.FactionName = AlienFactionNames[NameIdx];
-			Faction.FactionType = EFactionType::Alien;
-			Faction.Credits = 3000000.0f + RandStream.FRandRange(-500000.0f, 500000.0f);
-		}
+		// Fixed lore faction identity
+		Faction.FactionName = GetFixedFactionName(FactionIdx);
+		Faction.Credits = GetStartingCredits(FactionIdx);
 
-		// Collect controlled systems (all systems where ControllingFactionId matches)
+		const FString Species = GetFixedFactionSpecies(FactionIdx);
+		Faction.FactionType = (Species == TEXT("Human"))
+			? EFactionType::Human
+			: EFactionType::Alien;
+
+		// Collect controlled systems
 		TArray<int32> ControlledSystemIds;
 		TArray<int32> CoreSystemIds;
 
@@ -1421,7 +1313,6 @@ void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStre
 			{
 				ControlledSystemIds.Add(System.SystemId);
 
-				// Core systems are FactionCore region type
 				if (System.RegionType == ERegionType::FactionCore)
 				{
 					CoreSystemIds.Add(System.SystemId);
@@ -1429,36 +1320,39 @@ void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStre
 			}
 		}
 
-		// Sprint 7: Sol special case - BOTH Earth and Mars control Sol
-		// Earth (Faction 0) is the official controller, Mars (Faction 1) shares presence
-		if (FactionIdx == 0) // Earth Government
+		// Sol special case:
+		// Earth is the official controller of Sol.
+		// Mars shares Sol as its home/presence even if it does not control surrounding territory.
+		if (FactionIdx == 0 || FactionIdx == 1)
 		{
-			int32 SolSystemId = Universe.FactionHomeSystems[0]; // Sol
+			const int32 SolSystemId = Universe.FactionHomeSystems[FactionIdx];
+
 			if (!ControlledSystemIds.Contains(SolSystemId))
 			{
 				ControlledSystemIds.Add(SolSystemId);
-				CoreSystemIds.Add(SolSystemId);
 			}
-		}
-		else if (FactionIdx == 1) // Mars Independence Movement
-		{
-			int32 SolSystemId = Universe.FactionHomeSystems[1]; // Sol (same as Earth's home)
-			if (!ControlledSystemIds.Contains(SolSystemId))
+
+			if (!CoreSystemIds.Contains(SolSystemId))
 			{
-				ControlledSystemIds.Add(SolSystemId);
 				CoreSystemIds.Add(SolSystemId);
 			}
 		}
 
-		// Assign collected systems to faction
 		Faction.ControlledSystemIds = ControlledSystemIds;
 		Faction.CoreSystemIds = CoreSystemIds;
 
 		// Calculate total population across controlled territory
 		Faction.TotalPopulation = 0;
+
 		for (int32 SystemId : Faction.ControlledSystemIds)
 		{
+			if (!Universe.Systems.IsValidIndex(SystemId))
+			{
+				continue;
+			}
+
 			const FStarSystemData& System = Universe.Systems[SystemId];
+
 			for (const FLocationData& Location : System.Locations)
 			{
 				if (Location.OwningFactionId == FactionIdx)
@@ -1468,8 +1362,7 @@ void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStre
 			}
 		}
 
-		// Initial economic strength estimate (population-based for now)
-		// Future: Calculate from actual market production/consumption
+		// Initial economic strength estimate
 		Faction.EconomicStrength = FMath::Sqrt((float)Faction.TotalPopulation) * 100.0f;
 		Faction.IndustrialStrength = Faction.EconomicStrength * 0.8f;
 
@@ -1484,16 +1377,137 @@ void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStre
 
 		Universe.Factions.Add(Faction);
 
-		UE_LOG(LogTemp, Log, TEXT("  Faction %d: %s (%s) - Home: System %d, Controlled: %d systems, Population: %lld"),
+		UE_LOG(LogTemp, Log, TEXT("  Faction %d: %s (%s) - Home: System %d, Controlled: %d systems, Population: %lld, Credits: %.0f"),
 			Faction.FactionId,
 			*Faction.FactionName,
-			Faction.FactionType == EFactionType::Human ? TEXT("Human") : TEXT("Alien"),
+			*Species,
 			Faction.HomeSystemId,
 			Faction.ControlledSystemIds.Num(),
-			Faction.TotalPopulation);
+			Faction.TotalPopulation,
+			Faction.Credits);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Faction initialization complete!"));
 }
+
+//void UUniverseGenerator::InitializeFactions(FUniverseData& Universe, FRandomStream& RandStream)
+//{
+//	UE_LOG(LogTemp, Log, TEXT("Initializing %d factions..."), Universe.FactionHomeSystems.Num());
+//
+//	Universe.Factions.Empty();
+//	Universe.Factions.Reserve(Universe.FactionHomeSystems.Num());	
+//
+//	for (int32 FactionIdx = 0; FactionIdx < Universe.FactionHomeSystems.Num(); ++FactionIdx)
+//	{
+//		FFactionData Faction;
+//		Faction.FactionId = FactionIdx;
+//		Faction.HomeSystemId = Universe.FactionHomeSystems[FactionIdx];
+//
+//		// Faction 0 and 1 are human factions (Earth and Mars in Sol)
+//		if (FactionIdx == 0)
+//		{
+//			Faction.FactionName = GetFixedFactionName(FactionIdx); // Earth Government
+//			Faction.FactionType = EFactionType::Human;
+//			Faction.Credits = 5000000.0f; // Largest human power
+//		}
+//		else if (FactionIdx == 1)
+//		{
+//			Faction.FactionName = GetFixedFactionName(FactionIdx); // Mars Independence
+//			Faction.FactionType = EFactionType::Human;
+//			Faction.Credits = 2000000.0f; // Smaller, rebel faction
+//		}
+//		else
+//		{
+//			// Alien factions
+//			int32 NameIdx = (FactionIdx - 2) % AlienFactionNames.Num();
+//			Faction.FactionName = AlienFactionNames[NameIdx];
+//			Faction.FactionType = EFactionType::Alien;
+//			Faction.Credits = 3000000.0f + RandStream.FRandRange(-500000.0f, 500000.0f);
+//		}
+//
+//		// Collect controlled systems (all systems where ControllingFactionId matches)
+//		TArray<int32> ControlledSystemIds;
+//		TArray<int32> CoreSystemIds;
+//
+//		for (const FStarSystemData& System : Universe.Systems)
+//		{
+//			if (System.ControllingFactionId == FactionIdx)
+//			{
+//				ControlledSystemIds.Add(System.SystemId);
+//
+//				// Core systems are FactionCore region type
+//				if (System.RegionType == ERegionType::FactionCore)
+//				{
+//					CoreSystemIds.Add(System.SystemId);
+//				}
+//			}
+//		}
+//
+//		// Sprint 7: Sol special case - BOTH Earth and Mars control Sol
+//		// Earth (Faction 0) is the official controller, Mars (Faction 1) shares presence
+//		if (FactionIdx == 0) // Earth Government
+//		{
+//			int32 SolSystemId = Universe.FactionHomeSystems[0]; // Sol
+//			if (!ControlledSystemIds.Contains(SolSystemId))
+//			{
+//				ControlledSystemIds.Add(SolSystemId);
+//				CoreSystemIds.Add(SolSystemId);
+//			}
+//		}
+//		else if (FactionIdx == 1) // Mars Independence Movement
+//		{
+//			int32 SolSystemId = Universe.FactionHomeSystems[1]; // Sol (same as Earth's home)
+//			if (!ControlledSystemIds.Contains(SolSystemId))
+//			{
+//				ControlledSystemIds.Add(SolSystemId);
+//				CoreSystemIds.Add(SolSystemId);
+//			}
+//		}
+//
+//		// Assign collected systems to faction
+//		Faction.ControlledSystemIds = ControlledSystemIds;
+//		Faction.CoreSystemIds = CoreSystemIds;
+//
+//		// Calculate total population across controlled territory
+//		Faction.TotalPopulation = 0;
+//		for (int32 SystemId : Faction.ControlledSystemIds)
+//		{
+//			const FStarSystemData& System = Universe.Systems[SystemId];
+//			for (const FLocationData& Location : System.Locations)
+//			{
+//				if (Location.OwningFactionId == FactionIdx)
+//				{
+//					Faction.TotalPopulation += Location.Population;
+//				}
+//			}
+//		}
+//
+//		// Initial economic strength estimate (population-based for now)
+//		// Future: Calculate from actual market production/consumption
+//		Faction.EconomicStrength = FMath::Sqrt((float)Faction.TotalPopulation) * 100.0f;
+//		Faction.IndustrialStrength = Faction.EconomicStrength * 0.8f;
+//
+//		// Initialize diplomatic relations as neutral
+//		for (int32 OtherFactionIdx = 0; OtherFactionIdx < Universe.FactionHomeSystems.Num(); ++OtherFactionIdx)
+//		{
+//			if (OtherFactionIdx != FactionIdx)
+//			{
+//				Faction.DiplomaticRelations.Add(OtherFactionIdx, EDiplomaticRelation::Neutral);
+//			}
+//		}
+//
+//		Universe.Factions.Add(Faction);
+//
+//		UE_LOG(LogTemp, Log, TEXT("  Faction %d: %s (%s) - Home: System %d, Controlled: %d systems, Population: %lld"),
+//			Faction.FactionId,
+//			*Faction.FactionName,
+//			Faction.FactionType == EFactionType::Human ? TEXT("Human") : TEXT("Alien"),
+//			Faction.HomeSystemId,
+//			Faction.ControlledSystemIds.Num(),
+//			Faction.TotalPopulation);
+//	}
+//
+//	UE_LOG(LogTemp, Log, TEXT("Faction initialization complete!"));
+//}
 
 

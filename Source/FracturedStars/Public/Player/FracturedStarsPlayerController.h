@@ -15,6 +15,13 @@ class UMainHUDWidget;
 class ASystemActor;
 struct FInputActionValue;
 
+UENUM(BlueprintType)
+enum class EPlayerViewMode : uint8
+{
+	Galaxy UMETA(DisplayName = "Galaxy"),
+	System UMETA(DisplayName = "System")
+};
+
 /**
  * Fractured Stars Player Controller
  * 
@@ -49,6 +56,18 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Player|View")
+	void EnterGalaxyView();
+
+	UFUNCTION(BlueprintCallable, Category = "Player|View")
+	void EnterSystemView(int32 SystemId);
+
+	UFUNCTION(BlueprintPure, Category = "Player|View")
+	EPlayerViewMode GetCurrentViewMode() const
+	{
+		return CurrentViewMode;
+	}
 
 	// ========================================================================
 	// Player Identity & State
@@ -241,6 +260,11 @@ protected:
 	UFogOfWarSubsystem* GetFogOfWarSubsystem() const;
 
 private:
+	UPROPERTY(BlueprintReadOnly, Category = "Player|View", meta = (AllowPrivateAccess = "true"))
+	EPlayerViewMode CurrentViewMode = EPlayerViewMode::Galaxy;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Player|View", meta = (AllowPrivateAccess = "true"))
+	int32 ViewedSystemId = -1;
 	/** The in-universe PlayerId this controller represents */
 	UPROPERTY(Replicated)
 	int32 PlayerId = -1;

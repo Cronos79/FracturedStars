@@ -39,7 +39,7 @@ public:
 	// ========== Subsystem Lifecycle ==========
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-
+	
 	/**
 	 * Initialize faction simulation (called after universe generation)
 	 * @param UniverseData - Generated universe with faction data

@@ -34,6 +34,9 @@ private:
 	static void CalculateLawfulness(FUniverseData& Universe);
 	static void EnsureTraversability(FUniverseData& Universe, FRandomStream& RandStream);
 	static void GenerateSystemContent(FUniverseData& Universe, FRandomStream& RandStream);
+	static FString GetFixedFactionName(int32 FactionId);
+	static FString GetFixedFactionSpecies(int32 FactionId);
+	static float GetStartingCredits(int32 FactionId);
 	static void InitializeFactions(FUniverseData& Universe, FRandomStream& RandStream); // Sprint 7
 	static void ValidateGeneration(const FUniverseData& Universe);
 
